@@ -1,9 +1,16 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
+
+	"golang.org/x/text/encoding/japanese"
+	"golang.org/x/text/transform"
 )
 
 var cmdDef = &Command{
@@ -15,13 +22,66 @@ var cmdDef = &Command{
 
 func run(args []string) int {
 
+	var err error
+	var wg sync.WaitGroup
+
+	// Ready csv writer.
+	now := time.Now()
+	file, err := os.Create(now.Format("20060102150405006") + ".csv")
+	FailOnError(err)
+	defer file.Close()
+
+	writer := csv.NewWriter(transform.NewWriter(file, japanese.ShiftJIS.NewEncoder()))
+	writer.UseCRLF = true
+	writer.Comma = '\t'
+
+	record := make(chan []string)
+
 	// Walk path and get file info.
 	for _, root := range args {
-		_ = filepath.Walk(root, func(f string, fi os.FileInfo, e error) error {
-			fmt.Println(f)
-			return e
-		})
+		wg.Add(1)
+		go func(root string, record chan []string) {
+			defer wg.Done()
+			getInfo(root, record)
+		}(root, record)
 	}
 
+	// Get records.
+	go func() {
+		for r := range record {
+			writer.Write(r)
+		}
+	}()
+	wg.Wait()
+	close(record)
+
+	writer.Flush()
+
 	return 0
+}
+
+func getInfo(root string, record chan []string) {
+
+	var err error
+	var wg sync.WaitGroup
+	// Log.Infof("path: [%s]\n", root)
+
+	infos, err := ioutil.ReadDir(root)
+	WarnOnError(err)
+
+	for _, fi := range infos {
+		full := filepath.Join(root, fi.Name())
+		if fi.IsDir() {
+			wg.Add(1)
+			go func(root string, record chan []string) {
+				defer wg.Done()
+				getInfo(root, record)
+			}(full, record)
+		} else {
+			record <- []string{full, fi.Name(), fi.ModTime().Format("2006/01/02 15:04:05.006"), fmt.Sprint(fi.Size()), fi.Mode().String()}
+		}
+	}
+
+	wg.Wait()
+
 }

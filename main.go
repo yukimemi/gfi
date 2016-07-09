@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 	"text/template"
+
+	"github.com/Sirupsen/logrus"
 )
 
 // A Command is an implementation of a gfi command
@@ -41,6 +43,7 @@ func (c *Command) Name() string {
 	return name
 }
 
+// Usage is show usage.
 func (c *Command) Usage() {
 	fmt.Fprintf(os.Stderr, "usage: %s\n\n", c.UsageLine)
 	fmt.Fprintf(os.Stderr, "%s\n", strings.TrimSpace(c.Long))
@@ -51,6 +54,23 @@ func (c *Command) Usage() {
 // The order here is the order in which they are printed by 'gfi help'.
 var commands = []*Command{
 	cmdDef,
+}
+
+// Log is log.
+var Log = logrus.New()
+
+// FailOnError is easy to judge error.
+func FailOnError(e error) {
+	if e != nil {
+		Log.Fatalln(e.Error())
+	}
+}
+
+// WarnOnError is easy to judge error.
+func WarnOnError(e error) {
+	if e != nil {
+		Log.Warnln(e.Error())
+	}
 }
 
 func main() {
@@ -84,7 +104,7 @@ func main() {
 	os.Exit(2)
 }
 
-var usageTemplate = `gfi is a tool for
+var usageTemplate = `gfi is a tool for get file information
 
 Usage:
 
