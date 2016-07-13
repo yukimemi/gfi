@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/csv"
 	"errors"
 	"flag"
 	"fmt"
@@ -10,8 +11,11 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Sirupsen/logrus"
+	"golang.org/x/text/encoding/japanese"
+	"golang.org/x/text/transform"
 )
 
 // Exit codes are int values that represent an exit code for a particular error.
@@ -90,6 +94,9 @@ func (cli *CLI) Run(args []string) int {
 		cli.log.Out = ioutil.Discard
 	}
 
+	// Set log level.
+	cli.log.Level = logrus.InfoLevel
+
 	// Show cpu num
 	cli.log.Infof("CPU NUM: [%d]", runtime.NumCPU())
 
@@ -99,13 +106,6 @@ func (cli *CLI) Run(args []string) int {
 	cli.cmdDir = filepath.Dir(cli.cmdFile)
 	cli.log.Infof("cmdFile: [%s] cmdDir: [%s]", cli.cmdFile, cli.cmdDir)
 
-	// Output file name.
-	// now := time.Now()
-	// outName := now.Format("20060102150405006") + ".csv"
-
-	// Quit channel.
-	// quit := make(chan bool)
-
 	// Walk path and get file info.
 	for _, root := range flags.Args() {
 
@@ -113,101 +113,14 @@ func (cli *CLI) Run(args []string) int {
 		cli.wg.Add(1)
 		go func(root string, ip string) {
 			defer cli.wg.Done()
-			cli.semaphore <- 1
 			cli.getInfo(root, ip)
-			<-cli.semaphore
 		}(root, ip)
 
 		cli.wg.Wait()
-
-		// Ready csv writer.
-		// file, err := os.Create(filepath.Join(outPath, outName))
-		// cli.failOnError(err)
-		// defer file.Close()
-
-		// gfi.writer = csv.NewWriter(transform.NewWriter(file, japanese.ShiftJIS.NewEncoder()))
-		// gfi.writer.UseCRLF = true
-		// gfi.writer.Comma = '\t'
-
-		// Ready file information channel.
-		// fi := make(chan map[string]string)
-
-		// Get file information async.
-		// cli.wg.Add(1)
-		// go func(root string, fi chan map[string]string) {
-		// 	defer cli.wg.Done()
-		//
-		// 	cli.semaphore <- 1
-		// 	getInfo(root, fi)
-		// 	<-cli.semaphore
-		// }(root, fi)
-		//
-		// // Get file information map async.
-		// cli.wg.Add(1)
-		// go func(gfi *gfi, fi chan map[string]string) {
-		// 	defer cli.wg.Done()
-		// 	cli.semaphore <- 1
-		//
-		// 	for k, v := range fi {
-		// 		select {
-		// 		case <-quit:
-		// 			// Quit
-		// 			close(fi)
-		// 		}
-		//
-		// 	}
-		//
-		// 	<-cli.semaphore
-		// }(&gfi, fi)
-
 	}
-
-	// Get records.
-	// go func() {
-	// 	for r := range record {
-	// 		writer.Write(r)
-	// 	}
-	// }()
-	// cli.wg.Wait()
-	// close(record)
-	//
-	// writer.Flush()
 
 	return ExitCodeOK
 }
-
-// func (cli *CLI) getInfo(path string, fi chan map[string]string) {
-//
-// 	var err error
-// 	cli.log.Infof("path: [%s]\n", path)
-//
-// 	infos, err := ioutil.ReadDir(path)
-// 	cli.warnOnError(err)
-//
-// 	for _, info := range infos {
-// 		full := filepath.Join(path, info.Name())
-// 		if info.IsDir() {
-// 			wg.Add(1)
-// 			go func(path string, fi chan map[string]string) {
-// 				defer wg.Done()
-// 				cli.semaphore <- 1
-// 				cli.getInfo(path, fi)
-// 				<-cli.semaphore
-// 			}(full, fi)
-// 		} else {
-// 			// Todo: Read map target from config file.
-// 			// Todo: Read time format from config file.
-// 			format := "2006/01/02 15:04:05.006"
-// 			fi <- map[string]string{
-// 				"full": full,
-// 				"name": info.Name(),
-// 				"time": info.ModTime().Format(format),
-// 				"size": fmt.Sprint(info.Size()),
-// 				"mode": info.Mode().String(),
-// 			}
-// 		}
-// 	}
-// }
 
 func (cli *CLI) getInfo(root string, ip string) {
 
@@ -240,16 +153,13 @@ func (cli *CLI) getInfo(root string, ip string) {
 
 		var fn func(p string)
 		fn = func(p string) {
-			defer wg.Done()
+			cli.semaphore <- 1
+			defer func() {
+				wg.Done()
+				<-cli.semaphore
+			}()
 
-			f, err := os.Open(p)
-			if err != nil {
-				cli.warnOnError(err)
-				return
-			}
-			defer f.Close()
-
-			fis, err := f.Readdir(-1)
+			fis, err := ioutil.ReadDir(p)
 			if err != nil {
 				cli.warnOnError(err)
 				return
@@ -261,8 +171,10 @@ func (cli *CLI) getInfo(root string, ip string) {
 					go fn(filepath.Join(p, fi.Name()))
 				} else {
 					format := "2006/01/02 15:04:05.006"
+					full, err := filepath.Abs(filepath.Join(p, fi.Name()))
+					cli.failOnError(err)
 					q <- map[string]string{
-						"full": filepath.Join(p, fi.Name()),
+						"full": full,
 						"name": fi.Name(),
 						"time": fi.ModTime().Format(format),
 						"size": fmt.Sprint(fi.Size()),
@@ -284,11 +196,26 @@ func (cli *CLI) getInfo(root string, ip string) {
 		return q
 	}(base)
 
+	// Write to csv.
+	now := time.Now()
+	outPath := filepath.Join(cli.cmdDir, filepath.Base(base))
+	outName := now.Format("20060102-150405006") + ".csv"
+	cli.mkdir(outPath)
+	// Ready csv writer.
+	file, err := os.Create(filepath.Join(outPath, outName))
+	cli.failOnError(err)
+	defer file.Close()
+
+	writer := csv.NewWriter(transform.NewWriter(file, japanese.ShiftJIS.NewEncoder()))
+	writer.UseCRLF = true
+	writer.Comma = '\t'
+
 	// Receive file information.
-	for info := range q {
-		cli.log.Info(info)
-		// todo: write csv.
+	for s := range q {
+		cli.log.Debug(s)
+		writer.Write([]string{s["full"], s["name"], s["time"], s["size"], s["mode"]})
 	}
+	writer.Flush()
 }
 
 // failOnError is easy to judge error.
