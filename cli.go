@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -24,32 +25,32 @@ const (
 	ExitCodeError int = 1 + iota
 )
 
-// CLI is the command line object
+// CLI is the command line object.
 type CLI struct {
 	log       *logrus.Logger
 	wg        sync.WaitGroup
 	semaphore chan int
-	gfis      []*gfi
 	cmdFile   string
 	cmdDir    string
-}
-
-// gfi is a tool for get file information
-type gfi struct {
-	ip   string
-	root string
-	path string
-	fi   []map[string]string
+	ip        string
+	jsn       bool
+	csv       bool
+	out       string
 }
 
 // Run invokes the CLI with the given arguments.
 func (cli *CLI) Run(args []string) int {
 	var (
 		verbose bool
-		ip      string
+		level   string
 		version bool
 		err     error
 	)
+
+	// Get cmd info.
+	cli.cmdFile, err = filepath.Abs(os.Args[0])
+	cli.failOnError(err)
+	cli.cmdDir = filepath.Dir(cli.cmdFile)
 
 	// Log
 	if cli.log == nil {
@@ -67,12 +68,12 @@ func (cli *CLI) Run(args []string) int {
 	flags := flag.NewFlagSet(Name, flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 
-	flags.BoolVar(&verbose, "verbose", false, "Show output")
-	flags.BoolVar(&verbose, "v", false, "Same verbose. (Short option)")
-
-	flags.StringVar(&ip, "ip", "", "Set ip if want to get remote file information.")
-	flags.StringVar(&ip, "i", "", "Same ip. (Short option)")
-
+	flags.StringVar(&cli.ip, "i", "", "Set ip if you want to get remote file information.")
+	flags.BoolVar(&cli.jsn, "j", false, "Output to json.")
+	flags.BoolVar(&cli.csv, "c", false, "Output to csv.")
+	flags.StringVar(&cli.out, "o", cli.cmdDir, "Output path.")
+	flags.StringVar(&level, "l", "Warn", "Set log level. (Debug, Info, Warn, Error, Fatal, Panic)")
+	flags.BoolVar(&verbose, "verbose", false, "Show output.")
 	flags.BoolVar(&version, "version", false, "Print version information and quit.")
 
 	// Parse commandline flag
@@ -80,13 +81,20 @@ func (cli *CLI) Run(args []string) int {
 		return ExitCodeError
 	}
 
-	// Show version
+	// Show version.
 	if version {
 		fmt.Fprintf(os.Stderr, "%s version %s\n", Name, Version)
 		return ExitCodeOK
 	}
 
-	// Show output
+	// Check arg.
+	if flags.NArg() == 0 {
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+		flags.PrintDefaults()
+		return ExitCodeError
+	}
+
+	// Show output.
 	if verbose {
 		cli.log.Info("Set verbose mode. Output log to Stdout.")
 		cli.log.Out = os.Stdout
@@ -94,27 +102,43 @@ func (cli *CLI) Run(args []string) int {
 		cli.log.Out = ioutil.Discard
 	}
 
-	// Set log level.
-	cli.log.Level = logrus.InfoLevel
+	// Set output type.
+	if !cli.jsn && !cli.csv {
+		cli.jsn = true
+	}
 
-	// Show cpu num
+	// Set log level.
+	if level != "Warn" {
+		cli.log.Infof("Set log level to [%s]", level)
+	}
+	switch level {
+	case "Debug":
+		cli.log.Level = logrus.DebugLevel
+	case "Info":
+		cli.log.Level = logrus.InfoLevel
+	case "Warn":
+		cli.log.Level = logrus.WarnLevel
+	case "Error":
+		cli.log.Level = logrus.ErrorLevel
+	case "Fatal":
+		cli.log.Level = logrus.FatalLevel
+	case "Panic":
+		cli.log.Level = logrus.PanicLevel
+	}
+
+	// Show cmd info and cpu num.
+	cli.log.Infof("cmdFile: [%s] cmdDir: [%s]", cli.cmdFile, cli.cmdDir)
 	cli.log.Infof("CPU NUM: [%d]", runtime.NumCPU())
 
-	// Get cmd info.
-	cli.cmdFile, err = filepath.Abs(os.Args[0])
-	cli.failOnError(err)
-	cli.cmdDir = filepath.Dir(cli.cmdFile)
-	cli.log.Infof("cmdFile: [%s] cmdDir: [%s]", cli.cmdFile, cli.cmdDir)
-
 	// Walk path and get file info.
-	for _, root := range flags.Args() {
+	for _, base := range flags.Args() {
 
-		// Get file information and write csv under the root.
+		// Get file information and write csv under the base.
 		cli.wg.Add(1)
-		go func(root string, ip string) {
+		go func(base string, ip string) {
 			defer cli.wg.Done()
-			cli.getInfo(root, ip)
-		}(root, ip)
+			cli.getInfo(base, ip)
+		}(base, cli.ip)
 
 		cli.wg.Wait()
 	}
@@ -122,19 +146,18 @@ func (cli *CLI) Run(args []string) int {
 	return ExitCodeOK
 }
 
-func (cli *CLI) getInfo(root string, ip string) {
+func (cli *CLI) getInfo(base string, ip string) {
 
 	var (
-		err  error
-		base string
-		q    chan map[string]string
+		err error
+		q   chan map[string]string
 	)
 
 	if ip != "" {
-		base = filepath.Join("\\\\"+ip, root)
+		base = filepath.Join("\\\\"+ip, base)
 		base = strings.Replace(base, ":", "$", -1)
 	} else {
-		base = root
+		base = base
 	}
 
 	// Check base exist.
@@ -196,26 +219,50 @@ func (cli *CLI) getInfo(root string, ip string) {
 		return q
 	}(base)
 
-	// Write to csv.
+	// Write to output.
 	now := time.Now()
-	outPath := filepath.Join(cli.cmdDir, filepath.Base(base))
-	outName := now.Format("20060102-150405006") + ".csv"
+	outPath := filepath.Join(cli.out, base)
 	cli.mkdir(outPath)
-	// Ready csv writer.
+	var outName string
+	if cli.csv {
+		outName = now.Format("20060102-150405.000") + ".csv"
+	} else if cli.jsn {
+		outName = now.Format("20060102-150405.000") + ".json"
+	}
+
+	// Ready writer.
 	file, err := os.Create(filepath.Join(outPath, outName))
 	cli.failOnError(err)
 	defer file.Close()
 
-	writer := csv.NewWriter(transform.NewWriter(file, japanese.ShiftJIS.NewEncoder()))
-	writer.UseCRLF = true
-	writer.Comma = '\t'
+	var csvWriter *csv.Writer
+	if cli.csv {
+		csvWriter = csv.NewWriter(transform.NewWriter(file, japanese.ShiftJIS.NewEncoder()))
+		csvWriter.UseCRLF = true
+		csvWriter.Comma = '\t'
+	}
 
 	// Receive file information.
+	is := make([]map[string]string, 0)
 	for s := range q {
 		cli.log.Debug(s)
-		writer.Write([]string{s["full"], s["name"], s["time"], s["size"], s["mode"]})
+		if cli.csv {
+			csvWriter.Write([]string{s["full"], s["name"], s["time"], s["size"], s["mode"]})
+		} else if cli.jsn {
+			is = append(is, s)
+		}
 	}
-	writer.Flush()
+	if cli.csv {
+		csvWriter.Flush()
+	}
+
+	// Write to json.
+	if cli.jsn {
+		j, err := json.Marshal(is)
+		cli.failOnError(err)
+		n, err := file.Write(j)
+		cli.log.Infof("Write to [%s] file. ([%d] bytes)", filepath.Join(outPath, outName), n)
+	}
 }
 
 // failOnError is easy to judge error.
@@ -238,7 +285,7 @@ func (cli *CLI) mkdir(dir string) error {
 	if e != nil {
 		return os.Mkdir(dir, os.ModePerm)
 	} else if d.IsDir() {
-		cli.log.Info("[%s] is already exists !", dir)
+		cli.log.Infof("[%s] is already exists !", dir)
 		return nil
 	}
 
