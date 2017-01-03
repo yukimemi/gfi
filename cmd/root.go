@@ -42,6 +42,7 @@ type cmdInfo struct {
 // FileInfo is file infomation.
 type FileInfo struct {
 	Full string    `json:"full"`
+	Abs  string    `json:"abs"`
 	Name string    `json:"name"`
 	Time time.Time `json:"time"`
 	Size string    `json:"size"`
@@ -182,12 +183,12 @@ func getFileInfo(root string) (FileInfos, error) {
 		}
 		info := &FileInfo{
 			Full: f.Path,
+			Abs:  file.ShareToAbs(f.Path),
 			Name: f.Fi.Name(),
 			Time: f.Fi.ModTime(),
 			Size: fmt.Sprint(f.Fi.Size()),
 			Mode: f.Fi.Mode().String(),
 		}
-		fmt.Println(info.Full)
 		fis = append(fis, *info)
 	}
 
@@ -201,7 +202,7 @@ func (f FileInfos) Len() int {
 
 // Less returns which FileInfo is less.
 func (f FileInfos) Less(i, j int) bool {
-	return f[i].Full < f[j].Full
+	return f[i].Abs < f[j].Abs
 }
 
 // Swap is FileInfos swap func.
