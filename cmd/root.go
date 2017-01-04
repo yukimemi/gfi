@@ -32,6 +32,8 @@ import (
 var cfgFile string
 var out string
 var sortFlg bool
+var fileOnly bool
+var dirOnly bool
 
 type cmdInfo struct {
 	cmdFile string
@@ -42,11 +44,18 @@ type cmdInfo struct {
 // FileInfo is file infomation.
 type FileInfo struct {
 	Full string    `json:"full"`
+	Rel  string    `json:"rel"`
 	Abs  string    `json:"abs"`
 	Name string    `json:"name"`
 	Time time.Time `json:"time"`
 	Size string    `json:"size"`
 	Mode string    `json:"mode"`
+}
+
+// Output is output json struct.
+type Output struct {
+	Count     int `json:"count"`
+	FileInfos `json:"fileinfos"`
 }
 
 // FileInfos is FileInfo slice.
@@ -71,7 +80,7 @@ examples and usage of using your application. For example:
 		// Get cmd info.
 		cmdFile, err := filepath.Abs(os.Args[0])
 		if err != nil {
-			_ = fmt.Errorf("Error get cmd file name")
+			fmt.Fprintf(os.Stderr, "Error occur at get cmd file name. [%s]\n", err)
 			return
 		}
 		cmdDir := filepath.Dir(cmdFile)
@@ -80,6 +89,9 @@ examples and usage of using your application. For example:
 			cmdDir:  cmdDir,
 			cmdName: file.BaseName(cmdFile),
 		}
+		fmt.Printf("cmdFile: [%s]\n", cmdInfo.cmdFile)
+		fmt.Printf("cmdDir:  [%s]\n", cmdInfo.cmdDir)
+		fmt.Printf("cmdName: [%s]\n", cmdInfo.cmdName)
 
 		fis := make(FileInfos, 0)
 		wg := new(sync.WaitGroup)
@@ -89,7 +101,7 @@ examples and usage of using your application. For example:
 				defer wg.Done()
 				fi, err := getFileInfo(root)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error occur when get [%s] directory file information.\n", root)
+					fmt.Fprintf(os.Stderr, "Error occur when get [%s] directory file information. [%s]\n", root, err)
 				} else {
 					fis = append(fis, fi...)
 				}
@@ -110,18 +122,22 @@ examples and usage of using your application. For example:
 			}
 			return filepath.Join(cmdInfo.cmdDir, now.Format("20060102-150405.000")+".json")
 		}()
-		j, err := json.MarshalIndent(fis, "", "\t")
+		// Add Count.
+		output := Output{
+			Count:     len(fis),
+			FileInfos: fis,
+		}
+		j, err := json.MarshalIndent(output, "", "\t")
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error occur at MarshalIndent for [%v]", fis)
+			fmt.Fprintf(os.Stderr, "Error occur at MarshalIndent for [%v]. [%s]\n", fis, err)
 		}
 		file, err := os.Create(jsonPath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error occur at create [%s] json file.\n", jsonPath)
+			fmt.Fprintf(os.Stderr, "Error occur at create [%s] json file. [%s]\n", jsonPath, err)
 		}
 		defer file.Close()
 		n, err := file.Write(j)
 		fmt.Printf("Write to [%s] file. ([%d] bytes)", jsonPath, n)
-
 	},
 }
 
@@ -146,7 +162,10 @@ func init() {
 	RootCmd.PersistentFlags().StringVarP(&out, "out", "o", "", "Json output path")
 	// Sort with fullpath for josn.
 	RootCmd.PersistentFlags().BoolVarP(&sortFlg, "sort", "s", false, "Sort flag")
-
+	// File only flag.
+	RootCmd.PersistentFlags().BoolVarP(&fileOnly, "file", "f", false, "Get information file only")
+	// Directory only flag.
+	RootCmd.PersistentFlags().BoolVarP(&dirOnly, "dir", "d", false, "Get information directory only")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -167,12 +186,23 @@ func initConfig() {
 
 func getFileInfo(root string) (FileInfos, error) {
 
-	var fis FileInfos
+	var (
+		fis FileInfos
+		fs  chan file.Info
+		err error
+	)
+
 	opt := file.Option{
 		Recurse: true,
 	}
 
-	fs, err := file.GetFilesAndDirs(root, opt)
+	if fileOnly && !dirOnly {
+		fs, err = file.GetFiles(root, opt)
+	} else if !fileOnly && dirOnly {
+		fs, err = file.GetDirs(root, opt)
+	} else {
+		fs, err = file.GetFilesAndDirs(root, opt)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -181,9 +211,18 @@ func getFileInfo(root string) (FileInfos, error) {
 		if f.Err != nil {
 			return nil, f.Err
 		}
+		abs, err := filepath.Abs(f.Path)
+		if err != nil {
+			return nil, err
+		}
+		full, err := filepath.Abs(file.ShareToAbs(f.Path))
+		if err != nil {
+			return nil, err
+		}
 		info := &FileInfo{
-			Full: f.Path,
-			Abs:  file.ShareToAbs(f.Path),
+			Full: full,
+			Abs:  abs,
+			Rel:  f.Path,
 			Name: f.Fi.Name(),
 			Time: f.Fi.ModTime(),
 			Size: fmt.Sprint(f.Fi.Size()),
@@ -202,7 +241,7 @@ func (f FileInfos) Len() int {
 
 // Less returns which FileInfo is less.
 func (f FileInfos) Less(i, j int) bool {
-	return f[i].Abs < f[j].Abs
+	return f[i].Full < f[j].Full
 }
 
 // Swap is FileInfos swap func.
