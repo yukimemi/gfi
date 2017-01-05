@@ -34,6 +34,7 @@ var out string
 var sortFlg bool
 var fileOnly bool
 var dirOnly bool
+var errSkip bool
 
 type cmdInfo struct {
 	cmdFile string
@@ -102,9 +103,9 @@ examples and usage of using your application. For example:
 				fi, err := getFileInfo(root)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "Error occur when get [%s] directory file information. [%s]\n", root, err)
-				} else {
-					fis = append(fis, fi...)
+					return
 				}
+				fis = append(fis, fi...)
 			}(root)
 		}
 		wg.Wait()
@@ -166,6 +167,8 @@ func init() {
 	RootCmd.PersistentFlags().BoolVarP(&fileOnly, "file", "f", false, "Get information file only")
 	// Directory only flag.
 	RootCmd.PersistentFlags().BoolVarP(&dirOnly, "dir", "d", false, "Get information directory only")
+	// Skip flag.
+	RootCmd.PersistentFlags().BoolVarP(&errSkip, "err", "e", false, "Skip getting file information on error")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -209,14 +212,26 @@ func getFileInfo(root string) (FileInfos, error) {
 
 	for f := range fs {
 		if f.Err != nil {
+			if errSkip {
+				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", f.Err)
+				continue
+			}
 			return nil, f.Err
 		}
 		abs, err := filepath.Abs(f.Path)
 		if err != nil {
+			if errSkip {
+				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", err)
+				continue
+			}
 			return nil, err
 		}
 		full, err := filepath.Abs(file.ShareToAbs(f.Path))
 		if err != nil {
+			if errSkip {
+				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", err)
+				continue
+			}
 			return nil, err
 		}
 		info := &FileInfo{
