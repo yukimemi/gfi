@@ -44,6 +44,7 @@ type cmdInfo struct {
 	cmdFile string
 	cmdDir  string
 	cmdName string
+	cwd     string
 }
 
 // FileInfo is file infomation.
@@ -83,9 +84,14 @@ examples and usage of using your application. For example:
 			return
 		}
 		// Get cmd info.
-		cmdFile, err := filepath.Abs(os.Args[0])
+		cmdFile, err := file.GetCmdPath(os.Args[0])
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error occur at get cmd file name. [%s]\n", err)
+			return
+		}
+		cwd, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error occur at get current directory. [%s]\n", err)
 			return
 		}
 		cmdDir := filepath.Dir(cmdFile)
@@ -93,10 +99,12 @@ examples and usage of using your application. For example:
 			cmdFile: cmdFile,
 			cmdDir:  cmdDir,
 			cmdName: file.BaseName(cmdFile),
+			cwd:     cwd,
 		}
-		fmt.Printf("cmdFile: [%s]\n", cmdInfo.cmdFile)
-		fmt.Printf("cmdDir:  [%s]\n", cmdInfo.cmdDir)
-		fmt.Printf("cmdName: [%s]\n", cmdInfo.cmdName)
+		fmt.Printf("cmdFile : [%s]\n", cmdInfo.cmdFile)
+		fmt.Printf("cmdDir  : [%s]\n", cmdInfo.cmdDir)
+		fmt.Printf("cmdName : [%s]\n", cmdInfo.cmdName)
+		fmt.Printf("cwd     : [%s]\n", cmdInfo.cwd)
 
 		fis := make(FileInfos, 0)
 		wg := new(sync.WaitGroup)
@@ -125,7 +133,7 @@ examples and usage of using your application. For example:
 			if out != "" {
 				return out
 			}
-			return filepath.Join(cmdInfo.cmdDir, now.Format("20060102-150405.000")+".json")
+			return filepath.Join(cmdInfo.cwd, now.Format("20060102-150405.000")+".json")
 		}()
 		// Add Count info.
 		output := Output{
