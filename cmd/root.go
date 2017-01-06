@@ -145,6 +145,7 @@ examples and usage of using your application. For example:
 			fmt.Fprintf(os.Stderr, "Error occur at MarshalIndent for [%v]. [%s]\n", fis, err)
 			return
 		}
+		os.MkdirAll(filepath.Dir(jsonPath), os.ModePerm)
 		file, err := os.Create(jsonPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error occur at create [%s] json file. [%s]\n", jsonPath, err)
