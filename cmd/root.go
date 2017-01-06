@@ -29,12 +29,16 @@ import (
 )
 
 // Cmd options.
-var cfgFile string
-var out string
-var sortFlg bool
-var fileOnly bool
-var dirOnly bool
-var errSkip bool
+var (
+	cfgFile  string
+	out      string
+	sortFlg  bool
+	fileOnly bool
+	dirOnly  bool
+	errSkip  bool
+	matches  []string
+	ignores  []string
+)
 
 type cmdInfo struct {
 	cmdFile string
@@ -123,7 +127,7 @@ examples and usage of using your application. For example:
 			}
 			return filepath.Join(cmdInfo.cmdDir, now.Format("20060102-150405.000")+".json")
 		}()
-		// Add Count.
+		// Add Count info.
 		output := Output{
 			Count:     len(fis),
 			FileInfos: fis,
@@ -131,13 +135,19 @@ examples and usage of using your application. For example:
 		j, err := json.MarshalIndent(output, "", "\t")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error occur at MarshalIndent for [%v]. [%s]\n", fis, err)
+			return
 		}
 		file, err := os.Create(jsonPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error occur at create [%s] json file. [%s]\n", jsonPath, err)
+			return
 		}
 		defer file.Close()
 		n, err := file.Write(j)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error occur at write [%s] json file. [%s]\n", jsonPath, err)
+			return
+		}
 		fmt.Printf("Write to [%s] file. ([%d] bytes)", jsonPath, n)
 	},
 }
@@ -160,15 +170,19 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gfi.yaml)")
 
 	// Output json path.
-	RootCmd.PersistentFlags().StringVarP(&out, "out", "o", "", "Json output path")
+	RootCmd.Flags().StringVarP(&out, "out", "o", "", "Json output path")
 	// Sort with fullpath for josn.
-	RootCmd.PersistentFlags().BoolVarP(&sortFlg, "sort", "s", false, "Sort flag")
+	RootCmd.Flags().BoolVarP(&sortFlg, "sort", "s", false, "Sort flag")
 	// File only flag.
-	RootCmd.PersistentFlags().BoolVarP(&fileOnly, "file", "f", false, "Get information file only")
+	RootCmd.Flags().BoolVarP(&fileOnly, "file", "f", false, "Get information file only")
 	// Directory only flag.
-	RootCmd.PersistentFlags().BoolVarP(&dirOnly, "dir", "d", false, "Get information directory only")
+	RootCmd.Flags().BoolVarP(&dirOnly, "dir", "d", false, "Get information directory only")
 	// Skip flag.
-	RootCmd.PersistentFlags().BoolVarP(&errSkip, "err", "e", false, "Skip getting file information on error")
+	RootCmd.Flags().BoolVarP(&errSkip, "err", "e", false, "Skip getting file information on error")
+	// Matches list.
+	RootCmd.Flags().StringArrayVarP(&matches, "match", "m", nil, "Match list (Regexp)")
+	// Ignores list.
+	RootCmd.Flags().StringArrayVarP(&ignores, "ignore", "i", nil, "Ignore list (Regexp)")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -196,6 +210,8 @@ func getFileInfo(root string) (FileInfos, error) {
 	)
 
 	opt := file.Option{
+		Matches: matches,
+		Ignores: ignores,
 		Recurse: true,
 	}
 
