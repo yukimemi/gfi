@@ -1,4 +1,4 @@
-// Copyright © 2016 yukimemi <yukimemi@gmail>
+// Copyright © 2017 yukimemi <yukimemi@gmail.com>
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,12 +15,9 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
-	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -28,23 +25,37 @@ import (
 	"github.com/yukimemi/file"
 )
 
-// Cmd options.
-var (
-	cfgFile  string
-	out      string
-	sortFlg  bool
-	fileOnly bool
-	dirOnly  bool
-	errSkip  bool
-	matches  []string
-	ignores  []string
+// FileInfoValue is FileInfo type.
+type FileInfoValue int
+
+const (
+	// Full is full path
+	Full FileInfoValue = iota + 1
+	// Rel is relative path.
+	Rel
+	// Abs is absolute path.
+	Abs
+	// Name is file name.
+	Name
+	// Time is file modified time.
+	Time
+	// Size is file size.
+	Size
+	// Mode is file permissions.
+	Mode
 )
 
-type cmdInfo struct {
-	cmdFile string
-	cmdDir  string
-	cmdName string
-	cwd     string
+// Cmd options.
+var (
+	cfgFile string
+)
+
+// Cmd is command infomation.
+type Cmd struct {
+	File string
+	Dir  string
+	Name string
+	Cwd  string
 }
 
 // FileInfo is file infomation.
@@ -68,98 +79,7 @@ type Output struct {
 type FileInfos []FileInfo
 
 // RootCmd represents the base command when called without any subcommands
-var RootCmd = &cobra.Command{
-	Use:   "gfi",
-	Short: "Get file information",
-	Long: `Get file information command. filepath, size, mode etc.
-examples and usage of using your application. For example:
-
-	gfi path/to/dir
-
-`,
-
-	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) == 0 {
-			cmd.Help()
-			return
-		}
-		// Get cmd info.
-		cmdFile, err := file.GetCmdPath(os.Args[0])
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error occur at get cmd file name. [%s]\n", err)
-			return
-		}
-		cwd, err := os.Getwd()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error occur at get current directory. [%s]\n", err)
-			return
-		}
-		cmdDir := filepath.Dir(cmdFile)
-		cmdInfo := cmdInfo{
-			cmdFile: cmdFile,
-			cmdDir:  cmdDir,
-			cmdName: file.BaseName(cmdFile),
-			cwd:     cwd,
-		}
-		fmt.Printf("cmdFile : [%s]\n", cmdInfo.cmdFile)
-		fmt.Printf("cmdDir  : [%s]\n", cmdInfo.cmdDir)
-		fmt.Printf("cmdName : [%s]\n", cmdInfo.cmdName)
-		fmt.Printf("cwd     : [%s]\n", cmdInfo.cwd)
-
-		fis := make(FileInfos, 0)
-		wg := new(sync.WaitGroup)
-		for _, root := range args {
-			wg.Add(1)
-			go func(root string) {
-				defer wg.Done()
-				fi, err := getFileInfo(root)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error occur when get [%s] directory file information. [%s]\n", root, err)
-					return
-				}
-				fis = append(fis, fi...)
-			}(root)
-		}
-		wg.Wait()
-		if len(fis) == 0 {
-			return
-		}
-		// sort FileInfos if sort flag set.
-		if sortFlg {
-			sort.Sort(fis)
-		}
-		now := time.Now()
-		jsonPath := func() string {
-			if out != "" {
-				return out
-			}
-			return filepath.Join(cmdInfo.cwd, now.Format("20060102-150405.000")+".json")
-		}()
-		// Add Count info.
-		output := Output{
-			Count:     len(fis),
-			FileInfos: fis,
-		}
-		j, err := json.MarshalIndent(output, "", "\t")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error occur at MarshalIndent for [%v]. [%s]\n", fis, err)
-			return
-		}
-		os.MkdirAll(filepath.Dir(jsonPath), os.ModePerm)
-		file, err := os.Create(jsonPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error occur at create [%s] json file. [%s]\n", jsonPath, err)
-			return
-		}
-		defer file.Close()
-		n, err := file.Write(j)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error occur at write [%s] json file. [%s]\n", jsonPath, err)
-			return
-		}
-		fmt.Printf("Write to [%s] file. ([%d] bytes)", jsonPath, n)
-	},
-}
+var RootCmd = &cobra.Command{Use: "gfi"}
 
 // Execute adds all child commands to the root command sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
@@ -177,21 +97,6 @@ func init() {
 	// Cobra supports Persistent Flags, which, if defined here,
 	// will be global for your application.
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gfi.yaml)")
-
-	// Output json path.
-	RootCmd.Flags().StringVarP(&out, "out", "o", "", "Json output path")
-	// Sort with fullpath for josn.
-	RootCmd.Flags().BoolVarP(&sortFlg, "sort", "s", false, "Sort flag")
-	// File only flag.
-	RootCmd.Flags().BoolVarP(&fileOnly, "file", "f", false, "Get information file only")
-	// Directory only flag.
-	RootCmd.Flags().BoolVarP(&dirOnly, "dir", "d", false, "Get information directory only")
-	// Skip flag.
-	RootCmd.Flags().BoolVarP(&errSkip, "err", "e", false, "Skip getting file information on error")
-	// Matches list.
-	RootCmd.Flags().StringArrayVarP(&matches, "match", "m", nil, "Match list (Regexp)")
-	// Ignores list.
-	RootCmd.Flags().StringArrayVarP(&ignores, "ignore", "i", nil, "Ignore list (Regexp)")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -210,70 +115,6 @@ func initConfig() {
 	}
 }
 
-func getFileInfo(root string) (FileInfos, error) {
-
-	var (
-		fis FileInfos
-		fs  chan file.Info
-		err error
-	)
-
-	opt := file.Option{
-		Matches: matches,
-		Ignores: ignores,
-		Recurse: true,
-	}
-
-	if fileOnly && !dirOnly {
-		fs, err = file.GetFiles(root, opt)
-	} else if !fileOnly && dirOnly {
-		fs, err = file.GetDirs(root, opt)
-	} else {
-		fs, err = file.GetFilesAndDirs(root, opt)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	for f := range fs {
-		if f.Err != nil {
-			if errSkip {
-				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", f.Err)
-				continue
-			}
-			return nil, f.Err
-		}
-		abs, err := filepath.Abs(f.Path)
-		if err != nil {
-			if errSkip {
-				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", err)
-				continue
-			}
-			return nil, err
-		}
-		full, err := filepath.Abs(file.ShareToAbs(f.Path))
-		if err != nil {
-			if errSkip {
-				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", err)
-				continue
-			}
-			return nil, err
-		}
-		info := &FileInfo{
-			Full: full,
-			Abs:  abs,
-			Rel:  f.Path,
-			Name: f.Fi.Name(),
-			Time: f.Fi.ModTime(),
-			Size: fmt.Sprint(f.Fi.Size()),
-			Mode: f.Fi.Mode().String(),
-		}
-		fis = append(fis, *info)
-	}
-
-	return fis, err
-}
-
 // Len returns FileInfos length.
 func (f FileInfos) Len() int {
 	return len(f)
@@ -287,4 +128,36 @@ func (f FileInfos) Less(i, j int) bool {
 // Swap is FileInfos swap func.
 func (f FileInfos) Swap(i, j int) {
 	f[i], f[j] = f[j], f[i]
+}
+
+// GetCmdInfo return struct of Cmd.
+func GetCmdInfo() (Cmd, error) {
+
+	var (
+		ci  Cmd
+		err error
+	)
+
+	// Get cmd info.
+	cmdFile, err := file.GetCmdPath(os.Args[0])
+	if err != nil {
+		return ci, err
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ci, err
+	}
+	cmdDir := filepath.Dir(cmdFile)
+	ci = Cmd{
+		File: cmdFile,
+		Dir:  cmdDir,
+		Name: file.BaseName(cmdFile),
+		Cwd:  cwd,
+	}
+	fmt.Printf("CmdFile : [%s]\n", ci.File)
+	fmt.Printf("CmdDir  : [%s]\n", ci.Dir)
+	fmt.Printf("CmdName : [%s]\n", ci.Name)
+	fmt.Printf("Cwd     : [%s]\n", ci.Cwd)
+	return ci, nil
+
 }
