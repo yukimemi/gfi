@@ -16,49 +16,43 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/yukimemi/file"
 )
 
-const fileCnt = 3
-const dirCnt = 3
+const (
+	fileCnt = 3
+	dirCnt  = 3
+	json1   = "one.json"
+	json2   = "two.json"
+	json3   = "three.json"
+	csv1    = "diff.csv"
+)
 
-func setup() {
-	pwd, _ := os.Getwd()
-	test := filepath.Join(pwd, "test")
-	os.MkdirAll(test, os.ModePerm)
+func setup() string {
+	temp, err := ioutil.TempDir("", "test")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	for i := 0; i < fileCnt; i++ {
-		os.Create(filepath.Join(test, "file"+fmt.Sprint(i)))
+		os.Create(filepath.Join(temp, "file"+fmt.Sprint(i)))
 	}
 	for i := 0; i < dirCnt; i++ {
-		d := filepath.Join(test, "dir"+fmt.Sprint(i))
-		os.MkdirAll(d, os.ModePerm)
+		d := filepath.Join(temp, "dir"+fmt.Sprint(i))
+		err := os.MkdirAll(d, os.ModePerm)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
 		os.Create(filepath.Join(d, "file"+fmt.Sprint(i)))
 	}
+	return temp
 }
 
-func shutdown() {
-	pwd, _ := os.Getwd()
-	test := filepath.Join(pwd, "test")
-	if file.IsExistDir(test) {
-		os.RemoveAll(test)
-	}
-}
-
-// TestExecute is test getFileInfo func.
-func TestExecute(t *testing.T) {
-	setup()
-	pwd, _ := os.Getwd()
-	test := filepath.Join(pwd, "test")
-
-	_, e := getFileInfo(test)
-	if e != nil {
-		t.FailNow()
-	}
-	shutdown()
+func shutdown(temp string) {
+	os.RemoveAll(temp)
 }
 
 // TestMain is entry point.

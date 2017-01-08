@@ -158,13 +158,15 @@ and usage of using command. For example:
 		// Receive diff and store to array.
 		csvMap := make(map[string][]string)
 		for info := range q {
-			if _, ok := csvMap[info.full]; ok {
-				csvMap[info.full][info.index+2] = info.value
+			key := info.full + fmt.Sprint(info.diff)
+			if _, ok := csvMap[key]; ok {
+				csvMap[key][info.index+2] = info.value
 			} else {
 				s := make([]string, len(args)+2)
 				s[0] = info.full
 				s[1] = fmt.Sprint(info.diff)
-				csvMap[info.full] = s
+				s[info.index+2] = info.value
+				csvMap[key] = s
 			}
 		}
 
@@ -186,13 +188,13 @@ and usage of using command. For example:
 		writer := csv.NewWriter(file)
 
 		// Write header.
-		writer.Write(append([]string{"Path","type"},args...))
+		writer.Write(append([]string{"Path", "type"}, args...))
 
 		for _, v := range csvMap {
 			writer.Write(v)
 		}
 		writer.Flush()
-
+		fmt.Printf("Write to [%s] file.\n", csvPath)
 	},
 }
 

@@ -109,7 +109,7 @@ For example:
 			fmt.Fprintf(os.Stderr, "Error occur at write [%s] json file. [%s]\n", jsonPath, err)
 			return
 		}
-		fmt.Printf("Write to [%s] file. ([%d] bytes)", jsonPath, n)
+		fmt.Printf("Write to [%s] file. ([%d] bytes)\n", jsonPath, n)
 	},
 }
 
