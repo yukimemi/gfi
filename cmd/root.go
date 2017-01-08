@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -102,6 +103,9 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gfi.yaml)")
 	// Output json or csv path.
 	RootCmd.PersistentFlags().StringVarP(&out, "out", "o", "", "Json/Csv output path")
+
+	// log setting.
+	log.SetFlags(log.Lshortfile)
 }
 
 // initConfig reads in config file and ENV variables if set.

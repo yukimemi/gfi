@@ -38,7 +38,8 @@ func setup() string {
 		os.Exit(1)
 	}
 	for i := 0; i < fileCnt; i++ {
-		os.Create(filepath.Join(temp, "file"+fmt.Sprint(i)))
+		f, _ := os.Create(filepath.Join(temp, "file"+fmt.Sprint(i)))
+		f.Close()
 	}
 	for i := 0; i < dirCnt; i++ {
 		d := filepath.Join(temp, "dir"+fmt.Sprint(i))
@@ -46,7 +47,8 @@ func setup() string {
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
-		os.Create(filepath.Join(d, "file"+fmt.Sprint(i)))
+		f, _ := os.Create(filepath.Join(d, "file"+fmt.Sprint(i)))
+		f.Close()
 	}
 	return temp
 }

@@ -19,12 +19,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	"golang.org/x/text/encoding/japanese"
+	"golang.org/x/text/transform"
+
 	"github.com/spf13/cobra"
+)
+
+var (
+	sorts string
 )
 
 type info struct {
@@ -34,6 +45,8 @@ type info struct {
 	diff  FileInfoValue
 	value string
 }
+
+type records [][]string
 
 // diffCmd represents the diff command
 var diffCmd = &cobra.Command{
@@ -46,11 +59,31 @@ and usage of using command. For example:
 
 `,
 	Run: func(cmd *cobra.Command, args []string) {
+		var (
+			err    error
+			ci     Cmd
+			wg     *sync.WaitGroup
+			q      chan info
+			csvMap map[string][]string
+		)
+
 		if len(args) == 0 {
 			cmd.Help()
 			return
 		}
-		ci, err := GetCmdInfo()
+
+		var a []string
+		for _, v := range args {
+			files, err := filepath.Glob(v)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			a = append(a, files...)
+		}
+		args = a
+
+		ci, err = GetCmdInfo()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error occur when get cmd information. [%s]\n", err)
 			return
@@ -73,8 +106,8 @@ and usage of using command. For example:
 			loads = append(loads, load)
 		}
 
-		wg := new(sync.WaitGroup)
-		q := make(chan info)
+		wg = new(sync.WaitGroup)
+		q = make(chan info)
 		for i, one := range loads {
 			wg.Add(1)
 			go func(i int, one Output) {
@@ -156,7 +189,7 @@ and usage of using command. For example:
 		}()
 
 		// Receive diff and store to array.
-		csvMap := make(map[string][]string)
+		csvMap = make(map[string][]string)
 		for info := range q {
 			key := info.full + fmt.Sprint(info.diff)
 			if _, ok := csvMap[key]; ok {
@@ -168,6 +201,11 @@ and usage of using command. For example:
 				s[info.index+2] = info.value
 				csvMap[key] = s
 			}
+		}
+
+		if len(csvMap) == 0 {
+			fmt.Println("There is no difference !")
+			return
 		}
 
 		// Output to csv.
@@ -185,12 +223,21 @@ and usage of using command. For example:
 			return
 		}
 		defer file.Close()
-		writer := csv.NewWriter(file)
+		writer := csv.NewWriter(transform.NewWriter(file, japanese.ShiftJIS.NewEncoder()))
 
 		// Write header.
-		writer.Write(append([]string{"Path", "type"}, args...))
+		writer.Write(append([]string{"key", "type"}, args...))
 
+		// map to array.
+		var csvArray records
 		for _, v := range csvMap {
+			csvArray = append(csvArray, v)
+		}
+
+		// sort
+		sort.Sort(csvArray)
+
+		for _, v := range csvArray {
 			writer.Write(v)
 		}
 		writer.Flush()
@@ -200,6 +247,9 @@ and usage of using command. For example:
 
 func init() {
 	RootCmd.AddCommand(diffCmd)
+
+	// Sort with fullpath for josn.
+	diffCmd.Flags().StringVarP(&sorts, "sorts", "s", "0,1", "Sort target column number with commma sepalated (ex: 1,2,0)")
 }
 
 func findFileInfo(fis FileInfos, target FileInfo) (FileInfo, error) {
@@ -210,4 +260,31 @@ func findFileInfo(fis FileInfos, target FileInfo) (FileInfo, error) {
 		}
 	}
 	return FileInfo{}, fmt.Errorf("Not found. [%s]", target.Full)
+}
+
+// Len returns records length.
+func (r records) Len() int {
+	return len(r)
+}
+
+// Less returns which record is less.
+func (r records) Less(i, j int) bool {
+	indexes := strings.Split(sorts, ",")
+	for _, index := range indexes {
+		ii, err := strconv.Atoi(index)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		if r[i][ii] < r[j][ii] {
+			return true
+		} else if r[i][ii] > r[j][ii] {
+			return false
+		}
+	}
+	return false
+}
+
+// Swap is records swap func.
+func (r records) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
 }
