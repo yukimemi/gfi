@@ -29,7 +29,6 @@ import (
 
 // Cmd options.
 var (
-	out      string
 	sortFlg  bool
 	fileOnly bool
 	dirOnly  bool
@@ -117,8 +116,6 @@ For example:
 func init() {
 	RootCmd.AddCommand(getCmd)
 
-	// Output json path.
-	getCmd.Flags().StringVarP(&out, "out", "o", "", "Json output path")
 	// Sort with fullpath for josn.
 	getCmd.Flags().BoolVarP(&sortFlg, "sort", "s", false, "Sort flag")
 	// File only flag.
@@ -182,7 +179,7 @@ func getFileInfo(root string) (FileInfos, error) {
 			}
 			return nil, err
 		}
-		info := &FileInfo{
+		info := FileInfo{
 			Full: full,
 			Abs:  abs,
 			Rel:  f.Path,
@@ -191,7 +188,7 @@ func getFileInfo(root string) (FileInfos, error) {
 			Size: fmt.Sprint(f.Fi.Size()),
 			Mode: f.Fi.Mode().String(),
 		}
-		fis = append(fis, *info)
+		fis = append(fis, info)
 	}
 
 	return fis, err

@@ -15,17 +15,22 @@
 package cmd
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/spf13/cobra"
 )
 
 type info struct {
 	path  string
+	index int
+	full  string
 	diff  FileInfoValue
 	value string
 }
@@ -50,9 +55,6 @@ and usage of using command. For example:
 			fmt.Fprintf(os.Stderr, "Error occur when get cmd information. [%s]\n", err)
 			return
 		}
-
-		// TODO
-		_ = ci
 
 		// Load json file and store.
 		var loads []Output
@@ -86,19 +88,20 @@ and usage of using command. For example:
 					if one.Count != other.Count {
 						q <- info{
 							path:  args[i],
+							index: i,
+							full:  "Count",
 							diff:  Count,
-							value: one.Count,
+							value: fmt.Sprint(one.Count),
 						}
 					}
-
 				}
-				// Diff fileinfo
-				for j, other := range loads {
-					if i == j {
-						continue
-					}
 
-					for _, oneFileInfo := range one.FileInfos {
+				// Diff fileinfo.
+				for _, oneFileInfo := range one.FileInfos {
+					for j, other := range loads {
+						if i == j {
+							continue
+						}
 						// Get other's same full path info.
 						otherFileInfo, err := findFileInfo(other.FileInfos, oneFileInfo)
 						if err == nil {
@@ -106,6 +109,8 @@ and usage of using command. For example:
 							if oneFileInfo.Time != otherFileInfo.Time {
 								q <- info{
 									path:  args[i],
+									index: i,
+									full:  oneFileInfo.Full,
 									diff:  Time,
 									value: oneFileInfo.Time.Format("2006/01/02 15:04:05.000"),
 								}
@@ -114,6 +119,8 @@ and usage of using command. For example:
 							if oneFileInfo.Size != otherFileInfo.Size {
 								q <- info{
 									path:  args[i],
+									index: i,
+									full:  oneFileInfo.Full,
 									diff:  Size,
 									value: oneFileInfo.Size,
 								}
@@ -122,12 +129,20 @@ and usage of using command. For example:
 							if oneFileInfo.Mode != otherFileInfo.Mode {
 								q <- info{
 									path:  args[i],
+									index: i,
+									full:  oneFileInfo.Full,
 									diff:  Mode,
 									value: oneFileInfo.Mode,
 								}
 							}
 						} else {
-							q <- info{path: args[i]}
+							q <- info{
+								path:  args[i],
+								index: i,
+								full:  oneFileInfo.Full,
+								diff:  Full,
+								value: oneFileInfo.Full,
+							}
 						}
 					}
 				}
@@ -140,10 +155,43 @@ and usage of using command. For example:
 			close(q)
 		}()
 
-		// Receive diff.
-		for fi := range q {
-			fmt.Println(fi)
+		// Receive diff and store to array.
+		csvMap := make(map[string][]string)
+		for info := range q {
+			if _, ok := csvMap[info.full]; ok {
+				csvMap[info.full][info.index+2] = info.value
+			} else {
+				s := make([]string, len(args)+2)
+				s[0] = info.full
+				s[1] = fmt.Sprint(info.diff)
+				csvMap[info.full] = s
+			}
 		}
+
+		// Output to csv.
+		now := time.Now()
+		csvPath := func() string {
+			if out != "" {
+				return out
+			}
+			return filepath.Join(ci.Cwd, now.Format("20060102-150405.000")+".csv")
+		}()
+
+		file, err := os.Create(csvPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error occur at create [%s] csv file. [%s]\n", csvPath, err)
+			return
+		}
+		defer file.Close()
+		writer := csv.NewWriter(file)
+
+		// Write header.
+		writer.Write(append([]string{"Path","type"},args...))
+
+		for _, v := range csvMap {
+			writer.Write(v)
+		}
+		writer.Flush()
 
 	},
 }

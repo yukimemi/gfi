@@ -29,8 +29,10 @@ import (
 type FileInfoValue int
 
 const (
+	// Count is file count.
+	Count FileInfoValue = iota + 1
 	// Full is full path
-	Full FileInfoValue = iota + 1
+	Full
 	// Rel is relative path.
 	Rel
 	// Abs is absolute path.
@@ -48,6 +50,7 @@ const (
 // Cmd options.
 var (
 	cfgFile string
+	out     string
 )
 
 // Cmd is command infomation.
@@ -97,6 +100,8 @@ func init() {
 	// Cobra supports Persistent Flags, which, if defined here,
 	// will be global for your application.
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gfi.yaml)")
+	// Output json or csv path.
+	RootCmd.PersistentFlags().StringVarP(&out, "out", "o", "", "Json/Csv output path")
 }
 
 // initConfig reads in config file and ENV variables if set.
