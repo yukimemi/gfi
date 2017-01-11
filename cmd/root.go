@@ -50,8 +50,12 @@ const (
 
 // Cmd options.
 var (
-	cfgFile string
-	out     string
+	cfgFile  string
+	out      string
+	fileOnly bool
+	dirOnly  bool
+	matches  []string
+	ignores  []string
 )
 
 // Cmd is command infomation.
@@ -71,6 +75,7 @@ type FileInfo struct {
 	Time time.Time `json:"time"`
 	Size string    `json:"size"`
 	Mode string    `json:"mode"`
+	Type string    `json:"type"`
 }
 
 // Output is output json struct.
@@ -103,6 +108,14 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gfi.yaml)")
 	// Output json or csv path.
 	RootCmd.PersistentFlags().StringVarP(&out, "out", "o", "", "Json/Csv output path")
+	// File only flag.
+	RootCmd.PersistentFlags().BoolVarP(&fileOnly, "file", "f", false, "Get information file only")
+	// Directory only flag.
+	RootCmd.PersistentFlags().BoolVarP(&dirOnly, "dir", "d", false, "Get information directory only")
+	// Matches list.
+	RootCmd.PersistentFlags().StringArrayVarP(&matches, "match", "m", nil, "Match list (Regexp)")
+	// Ignores list.
+	RootCmd.PersistentFlags().StringArrayVarP(&ignores, "ignore", "i", nil, "Ignore list (Regexp)")
 
 	// log setting.
 	log.SetFlags(log.Lshortfile)

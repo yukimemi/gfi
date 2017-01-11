@@ -15,6 +15,8 @@
 package cmd
 
 import (
+	"encoding/csv"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -26,10 +28,7 @@ import (
 func TestDiffCmdRun(t *testing.T) {
 
 	var (
-		// ei, ai int
-		// es, as string
 		err error
-		// fis    Output
 	)
 
 	tmp := setup()
@@ -63,6 +62,61 @@ func TestDiffCmdRun(t *testing.T) {
 	err = RootCmd.Execute()
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// Check csv.
+	f, err := os.Open(c1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	reader := csv.NewReader(f)
+	reader.LazyQuotes = true
+	cnt := 0
+	for {
+		r, err := reader.Read()
+		if err == io.EOF {
+			break
+		} else {
+			switch cnt {
+			case 0:
+				if r[0] != "key" {
+					t.Fatalf("Expect: [key] Actual: [%v]", r[0])
+				}
+				if r[1] != "type" {
+					t.Fatalf("Expect: [type] Actual: [%v]", r[1])
+				}
+			case 1:
+				if filepath.Base(r[0]) != "file0" {
+					t.Fatalf("Expect: [file0] Actual: [%v]", r[0])
+				}
+				if r[1] != "6" {
+					t.Fatalf("Expect: [6] Actual: [%v]", r[1])
+				}
+			case 2:
+				if filepath.Base(r[0]) != "file0" {
+					t.Fatalf("Expect: [file0] Actual: [%v]", r[0])
+				}
+				if r[1] != "7" {
+					t.Fatalf("Expect: [6] Actual: [%v]", r[1])
+				}
+			case 3:
+				if filepath.Base(r[0]) != json1 {
+					t.Fatalf("Expect: [%v] Actual: [%v]", json1, r[0])
+				}
+				if r[1] != "2" {
+					t.Fatalf("Expect: [2] Actual: [%v]", r[1])
+				}
+			case 4:
+				if r[0] != "Count" {
+					t.Fatalf("Expect: [Count] Actual: [%v]", r[0])
+				}
+				if r[1] != "1" {
+					t.Fatalf("Expect: [1] Actual: [%v]", r[1])
+				}
+			}
+		}
+		cnt++
 	}
 
 }

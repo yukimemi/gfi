@@ -1,0 +1,7 @@
+[spyconf]
+sleep = "100ms"
+
+[spys.second]
+file = "*.go"
+command = "go test"
+

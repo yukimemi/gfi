@@ -29,12 +29,8 @@ import (
 
 // Cmd options.
 var (
-	sortFlg  bool
-	fileOnly bool
-	dirOnly  bool
-	errSkip  bool
-	matches  []string
-	ignores  []string
+	sortFlg bool
+	errSkip bool
 )
 
 // getCmd represents the get command
@@ -47,70 +43,7 @@ For example:
 	gfi path/to/dir
 
 `,
-	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) == 0 {
-			cmd.Help()
-			return
-		}
-		ci, err := GetCmdInfo()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error occur when get cmd information. [%s]\n", err)
-			return
-		}
-
-		var fis FileInfos
-		wg := new(sync.WaitGroup)
-		for _, root := range args {
-			wg.Add(1)
-			go func(root string) {
-				defer wg.Done()
-				fi, err := getFileInfo(root)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error occur when get [%s] directory file information. [%s]\n", root, err)
-					return
-				}
-				fis = append(fis, fi...)
-			}(root)
-		}
-		wg.Wait()
-		if len(fis) == 0 {
-			return
-		}
-		// sort FileInfos if sort flag set.
-		if sortFlg {
-			sort.Sort(fis)
-		}
-		now := time.Now()
-		jsonPath := func() string {
-			if out != "" {
-				return out
-			}
-			return filepath.Join(ci.Cwd, now.Format("20060102-150405.000")+".json")
-		}()
-		// Add Count info.
-		output := Output{
-			Count:     len(fis),
-			FileInfos: fis,
-		}
-		j, err := json.MarshalIndent(output, "", "\t")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error occur at MarshalIndent for [%v]. [%s]\n", fis, err)
-			return
-		}
-		os.MkdirAll(filepath.Dir(jsonPath), os.ModePerm)
-		file, err := os.Create(jsonPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error occur at create [%s] json file. [%s]\n", jsonPath, err)
-			return
-		}
-		defer file.Close()
-		n, err := file.Write(j)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error occur at write [%s] json file. [%s]\n", jsonPath, err)
-			return
-		}
-		fmt.Printf("Write to [%s] file. ([%d] bytes)\n", jsonPath, n)
-	},
+	Run: executeGet,
 }
 
 func init() {
@@ -118,16 +51,73 @@ func init() {
 
 	// Sort with fullpath for josn.
 	getCmd.Flags().BoolVarP(&sortFlg, "sort", "s", false, "Sort flag")
-	// File only flag.
-	getCmd.Flags().BoolVarP(&fileOnly, "file", "f", false, "Get information file only")
-	// Directory only flag.
-	getCmd.Flags().BoolVarP(&dirOnly, "dir", "d", false, "Get information directory only")
 	// Skip flag.
 	getCmd.Flags().BoolVarP(&errSkip, "err", "e", false, "Skip getting file information on error")
-	// Matches list.
-	getCmd.Flags().StringArrayVarP(&matches, "match", "m", nil, "Match list (Regexp)")
-	// Ignores list.
-	getCmd.Flags().StringArrayVarP(&ignores, "ignore", "i", nil, "Ignore list (Regexp)")
+}
+
+func executeGet(cmd *cobra.Command, args []string) {
+	if len(args) == 0 {
+		cmd.Help()
+		return
+	}
+	ci, err := GetCmdInfo()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error occur when get cmd information. [%s]\n", err)
+		return
+	}
+
+	var fis FileInfos
+	wg := new(sync.WaitGroup)
+	for _, root := range args {
+		wg.Add(1)
+		go func(root string) {
+			defer wg.Done()
+			fi, err := getFileInfo(root)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error occur when get [%s] directory file information. [%s]\n", root, err)
+				return
+			}
+			fis = append(fis, fi...)
+		}(root)
+	}
+	wg.Wait()
+	if len(fis) == 0 {
+		return
+	}
+	// sort FileInfos if sort flag set.
+	if sortFlg {
+		sort.Sort(fis)
+	}
+	now := time.Now()
+	jsonPath := func() string {
+		if out != "" {
+			return out
+		}
+		return filepath.Join(ci.Cwd, now.Format("20060102-150405.000")+".json")
+	}()
+	// Add Count info.
+	output := Output{
+		Count:     len(fis),
+		FileInfos: fis,
+	}
+	j, err := json.MarshalIndent(output, "", "\t")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error occur at MarshalIndent for [%v]. [%s]\n", fis, err)
+		return
+	}
+	os.MkdirAll(filepath.Dir(jsonPath), os.ModePerm)
+	file, err := os.Create(jsonPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error occur at create [%s] json file. [%s]\n", jsonPath, err)
+		return
+	}
+	defer file.Close()
+	n, err := file.Write(j)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error occur at write [%s] json file. [%s]\n", jsonPath, err)
+		return
+	}
+	fmt.Printf("Write to [%s] file. ([%d] bytes)\n", jsonPath, n)
 }
 
 func getFileInfo(root string) (FileInfos, error) {
@@ -135,6 +125,7 @@ func getFileInfo(root string) (FileInfos, error) {
 	var (
 		fis FileInfos
 		fs  chan file.Info
+		cnt int
 		err error
 	)
 
@@ -155,7 +146,10 @@ func getFileInfo(root string) (FileInfos, error) {
 		return nil, err
 	}
 
+	cnt = 0
 	for f := range fs {
+		cnt++
+		fmt.Fprintf(os.Stderr, "Count: \r%d            \r", cnt)
 		if f.Err != nil {
 			if errSkip {
 				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", f.Err)
@@ -187,9 +181,17 @@ func getFileInfo(root string) (FileInfos, error) {
 			Time: f.Fi.ModTime(),
 			Size: fmt.Sprint(f.Fi.Size()),
 			Mode: f.Fi.Mode().String(),
+			Type: getType(f.Fi),
 		}
 		fis = append(fis, info)
 	}
 
 	return fis, err
+}
+
+func getType(f os.FileInfo) string {
+	if f.IsDir() {
+		return "directory"
+	}
+	return "file"
 }
