@@ -36,13 +36,15 @@ const (
 	DIR = "directory"
 	// COUNT is file count.
 	COUNT = "Count"
+	// UTF8 is csv encoding.
+	UTF8 = "utf8"
+	// SJIS is csv encoding.
+	SJIS = "sjis"
 )
 
 const (
-	// Count is file count.
-	Count FileInfoValue = iota + 1
 	// Full is full path
-	Full
+	Full FileInfoValue = iota + 1
 	// Rel is relative path.
 	Rel
 	// Abs is absolute path.
@@ -55,16 +57,25 @@ const (
 	Size
 	// Mode is file permissions.
 	Mode
+	// Type is file or directory.
+	Type
+	// Max is Max
+	Max = iota
 )
 
-// Cmd options.
 var (
+	// Cmd options.
 	cfgFile  string
 	out      string
 	fileOnly bool
 	dirOnly  bool
+	sjisOut  bool
 	matches  []string
 	ignores  []string
+	// Other variables.
+	err error
+	ci  Cmd
+	cnt = 0
 )
 
 // Cmd is command infomation.
@@ -77,20 +88,14 @@ type Cmd struct {
 
 // FileInfo is file infomation.
 type FileInfo struct {
-	Full string    `json:"full"`
-	Rel  string    `json:"rel"`
-	Abs  string    `json:"abs"`
-	Name string    `json:"name"`
-	Time time.Time `json:"time"`
-	Size string    `json:"size"`
-	Mode string    `json:"mode"`
-	Type string    `json:"type"`
-}
-
-// Output is output json struct.
-type Output struct {
-	Count     int `json:"count"`
-	FileInfos `json:"fileinfos"`
+	Full string
+	Rel  string
+	Abs  string
+	Name string
+	Time string
+	Size string
+	Mode string
+	Type string
 }
 
 // FileInfos is FileInfo slice.
@@ -115,12 +120,22 @@ func init() {
 	// Cobra supports Persistent Flags, which, if defined here,
 	// will be global for your application.
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gfi.yaml)")
-	// Output json or csv path.
-	RootCmd.PersistentFlags().StringVarP(&out, "out", "o", "", "Json/Csv output path")
+
+	// Get command info.
+	ci, err = GetCmdInfo()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	// Output csv path.
+	csvPath := filepath.Join(ci.Cwd, time.Now().Format("20060102-150405.000")+".csv")
+	RootCmd.PersistentFlags().StringVarP(&out, "out", "o", csvPath, "Csv output path")
 	// File only flag.
 	RootCmd.PersistentFlags().BoolVarP(&fileOnly, "file", "f", false, "Get information file only")
 	// Directory only flag.
 	RootCmd.PersistentFlags().BoolVarP(&dirOnly, "dir", "d", false, "Get information directory only")
+	// Whether output csv in ShiftJIS encoding.
+	RootCmd.PersistentFlags().BoolVarP(&sjisOut, "sjisout", "j", false, "Output csv in ShiftJIS encoding")
 	// Matches list.
 	RootCmd.PersistentFlags().StringArrayVarP(&matches, "match", "m", nil, "Match list (Regexp)")
 	// Ignores list.
@@ -187,4 +202,44 @@ func GetCmdInfo() (Cmd, error) {
 	}
 	return ci, nil
 
+}
+
+func getGlobArgs(args []string) ([]string, error) {
+
+	var (
+		err error
+		a   = make([]string, 0)
+	)
+	for _, v := range args {
+		files, err := filepath.Glob(v)
+		if err != nil {
+			log.Println(err)
+			return nil, err
+		}
+		a = append(a, files...)
+	}
+
+	return a, err
+}
+
+func (fiv FileInfoValue) String() string {
+	switch fiv {
+	case Full:
+		return "Full"
+	case Rel:
+		return "Rel"
+	case Abs:
+		return "Abs"
+	case Name:
+		return "Name"
+	case Time:
+		return "Time"
+	case Size:
+		return "Size"
+	case Mode:
+		return "Mode"
+	case Type:
+		return "Type"
+	}
+	return ""
 }
