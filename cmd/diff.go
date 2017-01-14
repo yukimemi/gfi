@@ -46,6 +46,7 @@ type info struct {
 	full  string
 	diff  FileInfoValue
 	value string
+	ford  string
 }
 
 type records [][]string
@@ -162,6 +163,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 						full:  COUNT,
 						diff:  Count,
 						value: fmt.Sprint(one.Count),
+						ford:  "",
 					}
 				}
 			}
@@ -201,6 +203,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 								full:  oneFileInfo.Full,
 								diff:  Time,
 								value: oneFileInfo.Time.Format("2006/01/02 15:04:05.000"),
+								ford:  oneFileInfo.Type,
 							}
 						}
 						// Diff Size.
@@ -211,6 +214,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 								full:  oneFileInfo.Full,
 								diff:  Size,
 								value: oneFileInfo.Size,
+								ford:  oneFileInfo.Type,
 							}
 						}
 						// Diff Mode.
@@ -221,6 +225,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 								full:  oneFileInfo.Full,
 								diff:  Mode,
 								value: oneFileInfo.Mode,
+								ford:  oneFileInfo.Type,
 							}
 						}
 					} else {
@@ -230,6 +235,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 							full:  oneFileInfo.Full,
 							diff:  Full,
 							value: oneFileInfo.Full,
+							ford:  oneFileInfo.Type,
 						}
 					}
 				}
@@ -248,12 +254,13 @@ func executeDiff(cmd *cobra.Command, args []string) {
 	for info := range q {
 		key := info.full + fmt.Sprint(info.diff)
 		if _, ok := csvMap[key]; ok {
-			csvMap[key][info.index+2] = info.value
+			csvMap[key][info.index+3] = info.value
 		} else {
-			s := make([]string, len(args)+2)
+			s := make([]string, len(args)+3)
 			s[0] = info.full
-			s[1] = fmt.Sprint(info.diff)
-			s[info.index+2] = info.value
+			s[1] = info.ford
+			s[2] = fmt.Sprint(info.diff)
+			s[info.index+3] = info.value
 			csvMap[key] = s
 		}
 	}
@@ -281,7 +288,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 	writer := csv.NewWriter(transform.NewWriter(file, japanese.ShiftJIS.NewEncoder()))
 
 	// Write header.
-	writer.Write(append([]string{"key", "type"}, args...))
+	writer.Write(append([]string{"key", "ford", "type"}, args...))
 
 	// map to array.
 	var csvArray records

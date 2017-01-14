@@ -84,35 +84,38 @@ func TestDiffCmdRun(t *testing.T) {
 				if r[0] != "key" {
 					t.Fatalf("Expect: [key] Actual: [%v]", r[0])
 				}
-				if r[1] != "type" {
+				if r[1] != "ford" {
+					t.Fatalf("Expect: [ford] Actual: [%v]", r[0])
+				}
+				if r[2] != "type" {
 					t.Fatalf("Expect: [type] Actual: [%v]", r[1])
 				}
 			case 1:
 				if filepath.Base(r[0]) != "file0" {
 					t.Fatalf("Expect: [file0] Actual: [%v]", r[0])
 				}
-				if r[1] != "6" {
+				if r[2] != "6" {
 					t.Fatalf("Expect: [6] Actual: [%v]", r[1])
 				}
 			case 2:
 				if filepath.Base(r[0]) != "file0" {
 					t.Fatalf("Expect: [file0] Actual: [%v]", r[0])
 				}
-				if r[1] != "7" {
+				if r[2] != "7" {
 					t.Fatalf("Expect: [6] Actual: [%v]", r[1])
 				}
 			case 3:
 				if filepath.Base(r[0]) != json1 {
 					t.Fatalf("Expect: [%v] Actual: [%v]", json1, r[0])
 				}
-				if r[1] != "2" {
+				if r[2] != "2" {
 					t.Fatalf("Expect: [2] Actual: [%v]", r[1])
 				}
 			case 4:
 				if r[0] != "Count" {
 					t.Fatalf("Expect: [Count] Actual: [%v]", r[0])
 				}
-				if r[1] != "1" {
+				if r[2] != "1" {
 					t.Fatalf("Expect: [1] Actual: [%v]", r[1])
 				}
 			}
