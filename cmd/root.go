@@ -30,6 +30,15 @@ import (
 type FileInfoValue int
 
 const (
+	// FILE is file.
+	FILE = "file"
+	// DIR is directory.
+	DIR = "directory"
+	// COUNT is file count.
+	COUNT = "Count"
+)
+
+const (
 	// Count is file count.
 	Count FileInfoValue = iota + 1
 	// Full is full path
@@ -176,10 +185,6 @@ func GetCmdInfo() (Cmd, error) {
 		Name: file.BaseName(cmdFile),
 		Cwd:  cwd,
 	}
-	fmt.Printf("CmdFile : [%s]\n", ci.File)
-	fmt.Printf("CmdDir  : [%s]\n", ci.Dir)
-	fmt.Printf("CmdName : [%s]\n", ci.Name)
-	fmt.Printf("Cwd     : [%s]\n", ci.Cwd)
 	return ci, nil
 
 }

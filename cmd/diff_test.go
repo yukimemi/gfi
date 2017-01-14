@@ -32,6 +32,7 @@ func TestDiffCmdRun(t *testing.T) {
 	)
 
 	tmp := setup()
+	defer shutdown(tmp)
 
 	j1 := filepath.Join(tmp, json1)
 	RootCmd.SetArgs([]string{"get", "-s", "-o", j1, tmp})

@@ -191,7 +191,7 @@ func getFileInfo(root string) (FileInfos, error) {
 
 func getType(f os.FileInfo) string {
 	if f.IsDir() {
-		return "directory"
+		return DIR
 	}
-	return "file"
+	return FILE
 }

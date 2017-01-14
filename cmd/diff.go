@@ -22,6 +22,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,6 +33,7 @@ import (
 	"golang.org/x/text/transform"
 
 	"github.com/spf13/cobra"
+	"github.com/yukimemi/core"
 )
 
 var (
@@ -69,12 +71,15 @@ func init() {
 }
 
 func executeDiff(cmd *cobra.Command, args []string) {
+
 	var (
 		err    error
 		ci     Cmd
 		wg     *sync.WaitGroup
 		q      chan info
 		csvMap map[string][]string
+		match  *regexp.Regexp
+		ignore *regexp.Regexp
 	)
 
 	if len(args) == 0 {
@@ -92,6 +97,12 @@ func executeDiff(cmd *cobra.Command, args []string) {
 		a = append(a, files...)
 	}
 	args = a
+
+	// Recheck args.
+	if len(args) <= 1 {
+		cmd.Help()
+		return
+	}
 
 	ci, err = GetCmdInfo()
 	if err != nil {
@@ -116,6 +127,22 @@ func executeDiff(cmd *cobra.Command, args []string) {
 		loads = append(loads, load)
 	}
 
+	// Compile if given matches and ignores.
+	if len(matches) != 0 {
+		match, err = core.CompileStrs(matches)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Compile error (%v) [%s]\n", matches, err)
+			return
+		}
+	}
+	if len(ignores) != 0 {
+		ignore, err = core.CompileStrs(ignores)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Compile error (%v) [%s]\n", ignores, err)
+			return
+		}
+	}
+
 	wg = new(sync.WaitGroup)
 	q = make(chan info)
 	for i, one := range loads {
@@ -132,7 +159,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 					q <- info{
 						path:  args[i],
 						index: i,
-						full:  "Count",
+						full:  COUNT,
 						diff:  Count,
 						value: fmt.Sprint(one.Count),
 					}
@@ -141,14 +168,22 @@ func executeDiff(cmd *cobra.Command, args []string) {
 
 			// Diff fileinfo.
 			for _, oneFileInfo := range one.FileInfos {
-				if fileOnly && oneFileInfo.Type == "directory" {
+				if fileOnly && oneFileInfo.Type == DIR {
 					continue
 				}
-				if dirOnly && oneFileInfo.Type == "file" {
+				if dirOnly && oneFileInfo.Type == FILE {
+					continue
+				}
+
+				// Ignore check.
+				if ignore != nil && ignore.MatchString(oneFileInfo.Full) {
 					continue
 				}
 
 				// Match check.
+				if match != nil && !match.MatchString(oneFileInfo.Full) {
+					continue
+				}
 
 				for j, other := range loads {
 					if i == j {

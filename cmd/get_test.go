@@ -32,6 +32,7 @@ func TestGetCmdRun(t *testing.T) {
 	)
 
 	tmp := setup()
+	defer shutdown(tmp)
 
 	j1 := filepath.Join(tmp, json1)
 	RootCmd.SetArgs([]string{"get", "-s", "-o", j1, tmp})
@@ -58,8 +59,7 @@ func TestGetCmdRun(t *testing.T) {
 	ai = fis.Count
 
 	if ai != ei {
-		t.Errorf("Expected: [%v] but actual: [%v]\n", ei, ai)
-		t.Fail()
+		t.Fatalf("Expected: [%v] but actual: [%v]\n", ei, ai)
 	}
 
 	// Check FileInfos.
@@ -68,8 +68,7 @@ func TestGetCmdRun(t *testing.T) {
 	es = "dir0"
 	as = fis.FileInfos[index].Name
 	if as != es {
-		t.Errorf("Expected: [%v] but actual: [%v]\n", es, as)
-		t.Fail()
+		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}
 
 	// Index 1.
@@ -77,8 +76,7 @@ func TestGetCmdRun(t *testing.T) {
 	es = "file0"
 	as = fis.FileInfos[index].Name
 	if as != es {
-		t.Errorf("Expected: [%v] but actual: [%v]\n", es, as)
-		t.Fail()
+		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}
 
 	// Index 2.
@@ -86,8 +84,7 @@ func TestGetCmdRun(t *testing.T) {
 	es = "dir1"
 	as = fis.FileInfos[index].Name
 	if as != es {
-		t.Errorf("Expected: [%v] but actual: [%v]\n", es, as)
-		t.Fail()
+		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}
 
 	// Index 3.
@@ -95,8 +92,7 @@ func TestGetCmdRun(t *testing.T) {
 	es = "file1"
 	as = fis.FileInfos[index].Name
 	if as != es {
-		t.Errorf("Expected: [%v] but actual: [%v]\n", es, as)
-		t.Fail()
+		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}
 
 	// Index 4.
@@ -104,8 +100,7 @@ func TestGetCmdRun(t *testing.T) {
 	es = "dir2"
 	as = fis.FileInfos[index].Name
 	if as != es {
-		t.Errorf("Expected: [%v] but actual: [%v]\n", es, as)
-		t.Fail()
+		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}
 
 	// Index 5.
@@ -113,8 +108,7 @@ func TestGetCmdRun(t *testing.T) {
 	es = "file2"
 	as = fis.FileInfos[index].Name
 	if as != es {
-		t.Errorf("Expected: [%v] but actual: [%v]\n", es, as)
-		t.Fail()
+		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}
 
 	// Index 6.
@@ -122,8 +116,7 @@ func TestGetCmdRun(t *testing.T) {
 	es = "file0"
 	as = fis.FileInfos[index].Name
 	if as != es {
-		t.Errorf("Expected: [%v] but actual: [%v]\n", es, as)
-		t.Fail()
+		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}
 
 	// Index 7.
@@ -131,8 +124,7 @@ func TestGetCmdRun(t *testing.T) {
 	es = "file1"
 	as = fis.FileInfos[index].Name
 	if as != es {
-		t.Errorf("Expected: [%v] but actual: [%v]\n", es, as)
-		t.Fail()
+		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}
 
 	// Index 8.
@@ -140,8 +132,7 @@ func TestGetCmdRun(t *testing.T) {
 	es = "file2"
 	as = fis.FileInfos[index].Name
 	if as != es {
-		t.Errorf("Expected: [%v] but actual: [%v]\n", es, as)
-		t.Fail()
+		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}
 
 }
