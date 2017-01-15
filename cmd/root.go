@@ -19,6 +19,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -28,6 +30,9 @@ import (
 
 // FileInfoValue is FileInfo type.
 type FileInfoValue int
+
+// DirInfoValue is DirInfo type.
+type DirInfoValue int
 
 const (
 	// FILE is file.
@@ -43,24 +48,45 @@ const (
 )
 
 const (
-	// Full is full path
-	Full FileInfoValue = iota + 1
-	// Rel is relative path.
-	Rel
-	// Abs is absolute path.
-	Abs
-	// Name is file name.
-	Name
-	// Time is file modified time.
-	Time
-	// Size is file size.
-	Size
-	// Mode is file permissions.
-	Mode
-	// Type is file or directory.
-	Type
-	// Max is Max
-	Max = iota
+	// FileFull is full path
+	FileFull FileInfoValue = iota + 1
+	// FileRel is relative path.
+	FileRel
+	// FileAbs is absolute path.
+	FileAbs
+	// FileName is file name.
+	FileName
+	// FileTime is file modified time.
+	FileTime
+	// FileSize is file size.
+	FileSize
+	// FileMode is file permissions.
+	FileMode
+	// FileType is file or directory.
+	FileType
+	// FileMax is Max
+	FileMax = iota
+)
+
+const (
+	// DirFull is full path
+	DirFull DirInfoValue = iota + 1
+	// DirRel is relative path.
+	DirRel
+	// DirAbs is absolute path.
+	DirAbs
+	// DirName is directory name.
+	DirName
+	// DirTime is directory modified time.
+	DirTime
+	// DirSize is directory size.
+	DirSize
+	// DirFileCount is file count.
+	DirFileCount
+	// DirDirCount is directory count or directory.
+	DirDirCount
+	// DirMax is Max
+	DirMax = iota
 )
 
 var (
@@ -72,6 +98,9 @@ var (
 	sjisOut  bool
 	matches  []string
 	ignores  []string
+	sorts    string
+	errSkip  bool
+	silent   bool
 	// Other variables.
 	err error
 	ci  Cmd
@@ -98,8 +127,25 @@ type FileInfo struct {
 	Type string
 }
 
+// DirInfo is file infomation.
+type DirInfo struct {
+	Full      string
+	Rel       string
+	Abs       string
+	Name      string
+	Time      string
+	Size      string
+	FileCount int64
+	DirCount  int64
+}
+
 // FileInfos is FileInfo slice.
 type FileInfos []FileInfo
+
+// DirInfos is DirInfo slice.
+type DirInfos []DirInfo
+
+type records [][]string
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{Use: "gfi"}
@@ -130,6 +176,8 @@ func init() {
 	// Output csv path.
 	csvPath := filepath.Join(ci.Cwd, time.Now().Format("20060102-150405.000")+".csv")
 	RootCmd.PersistentFlags().StringVarP(&out, "out", "o", csvPath, "Csv output path")
+	// Verbose flag.
+	RootCmd.PersistentFlags().BoolVarP(&silent, "silent", "S", false, "Print no count")
 	// File only flag.
 	RootCmd.PersistentFlags().BoolVarP(&fileOnly, "file", "f", false, "Get information file only")
 	// Directory only flag.
@@ -174,6 +222,48 @@ func (f FileInfos) Less(i, j int) bool {
 // Swap is FileInfos swap func.
 func (f FileInfos) Swap(i, j int) {
 	f[i], f[j] = f[j], f[i]
+}
+
+// Len returns DirInfos length.
+func (d DirInfos) Len() int {
+	return len(d)
+}
+
+// Less returns which DirInso is less.
+func (d DirInfos) Less(i, j int) bool {
+	return d[i].Full < d[j].Full
+}
+
+// Swap is DirInfos swap func.
+func (d DirInfos) Swap(i, j int) {
+	d[i], d[j] = d[j], d[i]
+}
+
+// Len returns records length.
+func (r records) Len() int {
+	return len(r)
+}
+
+// Less returns which record is less.
+func (r records) Less(i, j int) bool {
+	indexes := strings.Split(sorts, ",")
+	for _, index := range indexes {
+		ii, err := strconv.Atoi(index)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		if r[i][ii] < r[j][ii] {
+			return true
+		} else if r[i][ii] > r[j][ii] {
+			return false
+		}
+	}
+	return false
+}
+
+// Swap is records swap func.
+func (r records) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
 }
 
 // GetCmdInfo return struct of Cmd.
@@ -224,22 +314,44 @@ func getGlobArgs(args []string) ([]string, error) {
 
 func (fiv FileInfoValue) String() string {
 	switch fiv {
-	case Full:
+	case FileFull:
 		return "Full"
-	case Rel:
+	case FileRel:
 		return "Rel"
-	case Abs:
+	case FileAbs:
 		return "Abs"
-	case Name:
+	case FileName:
 		return "Name"
-	case Time:
+	case FileTime:
 		return "Time"
-	case Size:
+	case FileSize:
 		return "Size"
-	case Mode:
+	case FileMode:
 		return "Mode"
-	case Type:
+	case FileType:
 		return "Type"
+	}
+	return ""
+}
+
+func (div DirInfoValue) String() string {
+	switch div {
+	case DirFull:
+		return "Full"
+	case DirRel:
+		return "Rel"
+	case DirAbs:
+		return "Abs"
+	case DirName:
+		return "Name"
+	case DirTime:
+		return "Time"
+	case DirSize:
+		return "Size"
+	case DirFileCount:
+		return "FileCount"
+	case DirDirCount:
+		return "DirCount"
 	}
 	return ""
 }

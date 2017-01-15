@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -33,8 +32,12 @@ import (
 	"github.com/yukimemi/core"
 )
 
+const (
+	// DiffHeader is diff command output csv header.
+	DiffHeader = "Path\tType\tDiff"
+)
+
 var (
-	sorts  string
 	sjisIn bool
 )
 
@@ -46,8 +49,6 @@ type info struct {
 	value string
 	ford  string
 }
-
-type records [][]string
 
 // diffCmd represents the diff command
 var diffCmd = &cobra.Command{
@@ -65,8 +66,8 @@ and usage of using command. For example:
 func init() {
 	RootCmd.AddCommand(diffCmd)
 
-	// Sort with fullpath for josn.
-	diffCmd.Flags().StringVarP(&sorts, "sorts", "s", "0,1", "Sort target column number with commma sepalated (ex: 1,2,0)")
+	// Sort with target column for csv.
+	diffCmd.Flags().StringVarP(&sorts, "sorts", "s", "0,2", "Sort target column number with commma sepalated (ex: 1,2,0)")
 	// Whether input csv in ShiftJIS encoding.
 	diffCmd.Flags().BoolVarP(&sjisIn, "sjisin", "J", false, "Input csv in ShiftJIS encoding")
 }
@@ -104,6 +105,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 
 	// Load csv and store.
 	for _, csvPath := range args {
+		fmt.Println("Open:", csvPath)
 		c, err := os.Open(csvPath)
 		if err != nil {
 			log.Fatalln(err)
@@ -186,7 +188,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 								path:  args[i],
 								index: i,
 								full:  oneFi.Full,
-								diff:  Time,
+								diff:  FileTime,
 								value: oneFi.Time,
 								ford:  oneFi.Type,
 							}
@@ -197,7 +199,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 								path:  args[i],
 								index: i,
 								full:  oneFi.Full,
-								diff:  Size,
+								diff:  FileSize,
 								value: oneFi.Size,
 								ford:  oneFi.Type,
 							}
@@ -208,7 +210,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 								path:  args[i],
 								index: i,
 								full:  oneFi.Full,
-								diff:  Mode,
+								diff:  FileMode,
 								value: oneFi.Mode,
 								ford:  oneFi.Type,
 							}
@@ -218,7 +220,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 							path:  args[i],
 							index: i,
 							full:  oneFi.Full,
-							diff:  Full,
+							diff:  FileFull,
 							value: oneFi.Full,
 							ford:  oneFi.Type,
 						}
@@ -236,6 +238,10 @@ func executeDiff(cmd *cobra.Command, args []string) {
 
 	// Receive diff and store to array.
 	for info := range q {
+		cnt++
+		if !silent {
+			fmt.Fprintf(os.Stderr, "Count: %d\r", cnt)
+		}
 		key := info.full + fmt.Sprint(info.diff)
 		if _, ok := csvMap[key]; ok {
 			csvMap[key][info.index+3] = info.value
@@ -271,7 +277,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 	writer.UseCRLF = true
 
 	// Write header.
-	err = writer.Write(append([]string{"Key", "Type", "Diff"}, args...))
+	err = writer.Write(append(strings.Split(DiffHeader, "\t"), args...))
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -283,6 +289,9 @@ func executeDiff(cmd *cobra.Command, args []string) {
 	}
 
 	// sort
+	if sorts == "" {
+		sorts = "0,2"
+	}
 	sort.Sort(csvArray)
 
 	for _, v := range csvArray {
@@ -292,7 +301,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 		}
 	}
 	writer.Flush()
-	fmt.Printf("Write to [%s] file.\n", out)
+	fmt.Printf("Write to [%s]. ([%d] row)\n", out, cnt)
 }
 
 func findFileInfo(fis FileInfos, target FileInfo) (FileInfo, error) {
@@ -305,42 +314,15 @@ func findFileInfo(fis FileInfos, target FileInfo) (FileInfo, error) {
 	return FileInfo{}, fmt.Errorf("Not found. [%s]", target.Full)
 }
 
-// Len returns records length.
-func (r records) Len() int {
-	return len(r)
-}
-
-// Less returns which record is less.
-func (r records) Less(i, j int) bool {
-	indexes := strings.Split(sorts, ",")
-	for _, index := range indexes {
-		ii, err := strconv.Atoi(index)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		if r[i][ii] < r[j][ii] {
-			return true
-		} else if r[i][ii] > r[j][ii] {
-			return false
-		}
-	}
-	return false
-}
-
-// Swap is records swap func.
-func (r records) Swap(i, j int) {
-	r[i], r[j] = r[j], r[i]
-}
-
 func csvToFileInfo(data []string) *FileInfo {
 	return &FileInfo{
-		Full: data[Full-1],
-		Rel:  data[Rel-1],
-		Abs:  data[Abs-1],
-		Name: data[Name-1],
-		Time: data[Time-1],
-		Size: data[Size-1],
-		Mode: data[Mode-1],
-		Type: data[Type-1],
+		Full: data[FileFull-1],
+		Rel:  data[FileRel-1],
+		Abs:  data[FileAbs-1],
+		Name: data[FileName-1],
+		Time: data[FileTime-1],
+		Size: data[FileSize-1],
+		Mode: data[FileMode-1],
+		Type: data[FileType-1],
 	}
 }

@@ -33,7 +33,6 @@ import (
 var (
 	// Cmd options.
 	sortFlg bool
-	errSkip bool
 )
 
 // getCmd represents the get command
@@ -43,7 +42,7 @@ var getCmd = &cobra.Command{
 	Long: `Get file information command. filepath, size, mode etc.
 For example:
 
-	gfi path/to/dir
+	gfi get path/to/dir
 
 `,
 	Run: executeGet,
@@ -112,7 +111,7 @@ func executeGet(cmd *cobra.Command, args []string) {
 	writer.UseCRLF = true
 
 	// Write header.
-	err = writer.Write(getCsvHeader())
+	err = writer.Write(getFileCsvHeader())
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -120,7 +119,9 @@ func executeGet(cmd *cobra.Command, args []string) {
 	// Receive and output.
 	for f := range fi {
 		cnt++
-		fmt.Fprintf(os.Stderr, "Count: %d\r", cnt)
+		if !silent {
+			fmt.Fprintf(os.Stderr, "Count: %d\r", cnt)
+		}
 		if sortFlg {
 			fis = append(fis, f)
 		} else {
@@ -142,7 +143,13 @@ func executeGet(cmd *cobra.Command, args []string) {
 		}
 	}
 	writer.Flush()
-	fmt.Printf("Write to [%s]. ([%d] row)\n", out, cnt)
+	if cnt == 0 {
+		fmt.Println("There is no information to get.")
+		c.Close()
+		os.RemoveAll(out)
+	} else {
+		fmt.Printf("Write to [%s]. ([%d] row)\n", out, cnt)
+	}
 }
 
 func getFileInfo(root string, fi chan FileInfo) error {
@@ -217,22 +224,22 @@ func getType(f os.FileInfo) string {
 }
 
 func fileInfoToCsv(fi FileInfo) []string {
-	a := make([]string, Max)
-	a[Full-1] = fi.Full
-	a[Rel-1] = fi.Rel
-	a[Abs-1] = fi.Abs
-	a[Name-1] = fi.Name
-	a[Time-1] = fi.Time
-	a[Size-1] = fi.Size
-	a[Mode-1] = fi.Mode
-	a[Type-1] = fi.Type
+	a := make([]string, FileMax)
+	a[FileFull-1] = fi.Full
+	a[FileRel-1] = fi.Rel
+	a[FileAbs-1] = fi.Abs
+	a[FileName-1] = fi.Name
+	a[FileTime-1] = fi.Time
+	a[FileSize-1] = fi.Size
+	a[FileMode-1] = fi.Mode
+	a[FileType-1] = fi.Type
 	return a
 }
 
-func getCsvHeader() []string {
+func getFileCsvHeader() []string {
 	var fiv FileInfoValue
 	header := make([]string, 0)
-	for fiv = 1; fiv <= Max; fiv++ {
+	for fiv = 1; fiv <= FileMax; fiv++ {
 		header = append(header, fiv.String())
 	}
 	return header
