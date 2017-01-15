@@ -34,11 +34,11 @@ func TestDiffCmdRun(t *testing.T) {
 	tmp := setup()
 	defer shutdown(tmp)
 
-	j1 := filepath.Join(tmp, json1)
-	RootCmd.SetArgs([]string{"get", "-s", "-o", j1, tmp})
+	c1 := filepath.Join(tmp, getCsv1)
+	RootCmd.SetArgs([]string{"get", "-s", "-o", c1, tmp})
 	err = RootCmd.Execute()
 	if err != nil {
-		t.FailNow()
+		t.Fatal(err)
 	}
 
 	// Change size and time.
@@ -51,28 +51,28 @@ func TestDiffCmdRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	j2 := filepath.Join(tmp, json2)
-	RootCmd.SetArgs([]string{"get", "-s", "-o", j2, tmp})
+	c2 := filepath.Join(tmp, getCsv2)
+	RootCmd.SetArgs([]string{"get", "-s", "-o", c2, tmp})
 	err = RootCmd.Execute()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	c1 := filepath.Join(tmp, csv1)
-	RootCmd.SetArgs([]string{"diff", "-o", c1, j1, j2})
+	dc1 := filepath.Join(tmp, diffCsv1)
+	RootCmd.SetArgs([]string{"diff", "-o", dc1, c1, c2})
 	err = RootCmd.Execute()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Check csv.
-	f, err := os.Open(c1)
+	f, err := os.Open(dc1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer f.Close()
 	reader := csv.NewReader(f)
-	reader.LazyQuotes = true
+	reader.Comma = '\t'
 	cnt := 0
 	for {
 		r, err := reader.Read()
@@ -81,42 +81,49 @@ func TestDiffCmdRun(t *testing.T) {
 		} else {
 			switch cnt {
 			case 0:
-				if r[0] != "key" {
-					t.Fatalf("Expect: [key] Actual: [%v]", r[0])
+				if r[0] != "Path" {
+					t.Fatalf("Expect: [Path] Actual: [%v]", r[0])
 				}
-				if r[1] != "ford" {
-					t.Fatalf("Expect: [ford] Actual: [%v]", r[0])
+				if r[1] != "Type" {
+					t.Fatalf("Expect: [Type] Actual: [%v]", r[1])
 				}
-				if r[2] != "type" {
-					t.Fatalf("Expect: [type] Actual: [%v]", r[1])
+				if r[2] != "Diff" {
+					t.Fatalf("Expect: [Diff] Actual: [%v]", r[2])
 				}
 			case 1:
 				if filepath.Base(r[0]) != "file0" {
 					t.Fatalf("Expect: [file0] Actual: [%v]", r[0])
 				}
-				if r[2] != "6" {
-					t.Fatalf("Expect: [6] Actual: [%v]", r[1])
+				if r[2] != FileSize.String() {
+					t.Fatalf("Expect: [%v] Actual: [%v]", FileSize.String(), r[2])
 				}
 			case 2:
 				if filepath.Base(r[0]) != "file0" {
 					t.Fatalf("Expect: [file0] Actual: [%v]", r[0])
 				}
-				if r[2] != "7" {
-					t.Fatalf("Expect: [6] Actual: [%v]", r[1])
+				if r[2] != FileTime.String() {
+					t.Fatalf("Expect: [%v] Actual: [%v]", FileTime.String(), r[2])
 				}
 			case 3:
-				if filepath.Base(r[0]) != json1 {
-					t.Fatalf("Expect: [%v] Actual: [%v]", json1, r[0])
+				if r[0] != c1 {
+					t.Fatalf("Expect: [%v] Actual: [%v]", c1, r[0])
 				}
-				if r[2] != "2" {
-					t.Fatalf("Expect: [2] Actual: [%v]", r[1])
+				if r[2] != FileSize.String() {
+					t.Fatalf("Expect: [%v] Actual: [%v]", FileSize.String(), r[2])
 				}
 			case 4:
-				if r[0] != "Count" {
-					t.Fatalf("Expect: [Count] Actual: [%v]", r[0])
+				if r[0] != c1 {
+					t.Fatalf("Expect: [%v] Actual: [%v]", c1, r[0])
 				}
-				if r[2] != "1" {
-					t.Fatalf("Expect: [1] Actual: [%v]", r[1])
+				if r[2] != FileTime.String() {
+					t.Fatalf("Expect: [%v] Actual: [%v]", FileTime.String(), r[2])
+				}
+			case 5:
+				if r[0] != c2 {
+					t.Fatalf("Expect: [%v] Actual: [%v]", c2, r[0])
+				}
+				if r[2] != FileFull.String() {
+					t.Fatalf("Expect: [%v] Actual: [%v]", FileFull.String(), r[2])
 				}
 			}
 		}

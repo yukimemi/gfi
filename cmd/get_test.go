@@ -15,7 +15,7 @@
 package cmd
 
 import (
-	"encoding/json"
+	"encoding/csv"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,48 +25,49 @@ import (
 func TestGetCmdRun(t *testing.T) {
 
 	var (
-		ei, ai int
 		es, as string
 		err    error
-		fis    Output
 	)
 
 	tmp := setup()
 	defer shutdown(tmp)
 
-	j1 := filepath.Join(tmp, json1)
-	RootCmd.SetArgs([]string{"get", "-s", "-o", j1, tmp})
+	c1 := filepath.Join(tmp, getCsv1)
+	RootCmd.SetArgs([]string{"get", "-s", "-o", c1, tmp})
 	err = RootCmd.Execute()
 	if err != nil {
-		t.FailNow()
+		t.Fatal(err)
 	}
 
-	// Check json.
-	f1, err := os.Open(j1)
+	// Check csv.
+	f1, err := os.Open(c1)
 	if err != nil {
-		t.FailNow()
+		t.Fatal(err)
 	}
 
-	jr1 := json.NewDecoder(f1)
-	err = jr1.Decode(&fis)
-
+	reader := csv.NewReader(f1)
+	reader.Comma = '\t'
+	// Skip header.
+	_, err = reader.Read()
 	if err != nil {
-		t.FailNow()
+		t.Fatal(err)
+	}
+	left, err := reader.ReadAll()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	// Check count.
-	ei = fileCnt*2 + dirCnt
-	ai = fis.Count
-
-	if ai != ei {
-		t.Fatalf("Expected: [%v] but actual: [%v]\n", ei, ai)
+	// Csv to FileInfos.
+	fis := make(FileInfos, 0)
+	for _, r := range left {
+		fis = append(fis, *csvToFileInfo(r))
 	}
 
 	// Check FileInfos.
 	index := 0
 	// Index 0.
 	es = "dir0"
-	as = fis.FileInfos[index].Name
+	as = fis[index].Name
 	if as != es {
 		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}
@@ -74,7 +75,7 @@ func TestGetCmdRun(t *testing.T) {
 	// Index 1.
 	index++
 	es = "file0"
-	as = fis.FileInfos[index].Name
+	as = fis[index].Name
 	if as != es {
 		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}
@@ -82,7 +83,7 @@ func TestGetCmdRun(t *testing.T) {
 	// Index 2.
 	index++
 	es = "dir1"
-	as = fis.FileInfos[index].Name
+	as = fis[index].Name
 	if as != es {
 		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}
@@ -90,7 +91,7 @@ func TestGetCmdRun(t *testing.T) {
 	// Index 3.
 	index++
 	es = "file1"
-	as = fis.FileInfos[index].Name
+	as = fis[index].Name
 	if as != es {
 		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}
@@ -98,7 +99,7 @@ func TestGetCmdRun(t *testing.T) {
 	// Index 4.
 	index++
 	es = "dir2"
-	as = fis.FileInfos[index].Name
+	as = fis[index].Name
 	if as != es {
 		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}
@@ -106,7 +107,7 @@ func TestGetCmdRun(t *testing.T) {
 	// Index 5.
 	index++
 	es = "file2"
-	as = fis.FileInfos[index].Name
+	as = fis[index].Name
 	if as != es {
 		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}
@@ -114,7 +115,7 @@ func TestGetCmdRun(t *testing.T) {
 	// Index 6.
 	index++
 	es = "file0"
-	as = fis.FileInfos[index].Name
+	as = fis[index].Name
 	if as != es {
 		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}
@@ -122,7 +123,7 @@ func TestGetCmdRun(t *testing.T) {
 	// Index 7.
 	index++
 	es = "file1"
-	as = fis.FileInfos[index].Name
+	as = fis[index].Name
 	if as != es {
 		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}
@@ -130,7 +131,7 @@ func TestGetCmdRun(t *testing.T) {
 	// Index 8.
 	index++
 	es = "file2"
-	as = fis.FileInfos[index].Name
+	as = fis[index].Name
 	if as != es {
 		t.Fatalf("Expected: [%v] but actual: [%v]\n", es, as)
 	}

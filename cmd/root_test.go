@@ -23,12 +23,12 @@ import (
 )
 
 const (
-	fileCnt = 3
-	dirCnt  = 3
-	json1   = "one.json"
-	json2   = "two.json"
-	json3   = "three.json"
-	csv1    = "diff.csv"
+	fileCnt  = 3
+	dirCnt   = 3
+	getCsv1  = "one.csv"
+	getCsv2  = "two.csv"
+	getCsv3  = "three.csv"
+	diffCsv1 = "diff.csv"
 )
 
 func setup() string {

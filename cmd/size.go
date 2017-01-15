@@ -1,4 +1,4 @@
-// Copyright © 2017 yukimemi <yukimemi@gmail.com>
+// Copyright © 2017 yukimemi
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,41 +30,42 @@ import (
 	"github.com/yukimemi/file"
 )
 
-var (
-	// Cmd options.
-	sortFlg bool
-)
+// SizeInfo is directory size info.
+type SizeInfo struct {
+	path string
+	size int
+}
 
-// getCmd represents the get command
-var getCmd = &cobra.Command{
-	Use:   "get path/to/dir",
-	Short: "Get file information",
-	Long: `Get file information command. filepath, size, mode etc.
+// sizeCmd represents the size command
+var sizeCmd = &cobra.Command{
+	Use:   "size path/to/dir",
+	Short: "Get directory size",
+	Long: `Get directory size command.
 For example:
 
-	gfi get path/to/dir
+	gfi size path/to/dir
 
 `,
-	Run: executeGet,
+	Run: executeSize,
 }
 
 func init() {
-	RootCmd.AddCommand(getCmd)
+	RootCmd.AddCommand(sizeCmd)
 
-	// Sort with fullpath for josn.
-	getCmd.Flags().BoolVarP(&sortFlg, "sort", "s", false, "Sort flag")
 	// Skip flag.
-	getCmd.Flags().BoolVarP(&errSkip, "err", "e", false, "Skip getting file information on error")
+	sizeCmd.Flags().BoolVarP(&errSkip, "err", "e", false, "Skip getting directory information on error")
+	// Sort with target column for csv.
+	sizeCmd.Flags().StringVarP(&sorts, "sorts", "s", "", "Sort target column number with commma sepalated (ex: 1,2,0)")
 }
 
-func executeGet(cmd *cobra.Command, args []string) {
+func executeSize(cmd *cobra.Command, args []string) {
 
 	var (
 		err error
 
-		fi  = make(chan FileInfo)
-		fis = make(FileInfos, 0)
-		wg  = new(sync.WaitGroup)
+		di       = make(chan DirInfo)
+		csvArray = make(records, 0)
+		wg       = new(sync.WaitGroup)
 	)
 
 	if len(args) == 0 {
@@ -81,7 +82,7 @@ func executeGet(cmd *cobra.Command, args []string) {
 		wg.Add(1)
 		go func(root string) {
 			defer wg.Done()
-			err = getFileInfo(root, fi)
+			err = getDirInfo(root, di)
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -91,7 +92,7 @@ func executeGet(cmd *cobra.Command, args []string) {
 	// Async wait.
 	go func() {
 		wg.Wait()
-		close(fi)
+		close(di)
 	}()
 
 	// Create output csv file.
@@ -111,21 +112,21 @@ func executeGet(cmd *cobra.Command, args []string) {
 	writer.UseCRLF = true
 
 	// Write header.
-	err = writer.Write(getFileCsvHeader())
+	err = writer.Write(getDirCsvHeader())
 	if err != nil {
 		log.Fatalln(err)
 	}
 
 	// Receive and output.
-	for f := range fi {
+	for d := range di {
 		cnt++
 		if !silent {
 			fmt.Fprintf(os.Stderr, "Count: %d\r", cnt)
 		}
-		if sortFlg {
-			fis = append(fis, f)
+		if sorts != "" {
+			csvArray = append(csvArray, dirInfoToCsv(d))
 		} else {
-			err = writer.Write(fileInfoToCsv(f))
+			err = writer.Write(dirInfoToCsv(d))
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -133,10 +134,10 @@ func executeGet(cmd *cobra.Command, args []string) {
 	}
 
 	// sort FileInfos if sort flag set.
-	if sortFlg {
-		sort.Sort(fis)
-		for _, f := range fis {
-			err = writer.Write(fileInfoToCsv(f))
+	if sorts != "" {
+		sort.Sort(csvArray)
+		for _, v := range csvArray {
+			err = writer.Write(v)
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -152,11 +153,11 @@ func executeGet(cmd *cobra.Command, args []string) {
 	}
 }
 
-func getFileInfo(root string, fi chan FileInfo) error {
+func getDirInfo(root string, di chan DirInfo) error {
 
 	var (
 		err error
-		fs  chan file.Info
+		ds  chan file.DirInfo
 
 		opt = file.Option{
 			Matches: matches,
@@ -165,27 +166,25 @@ func getFileInfo(root string, fi chan FileInfo) error {
 		}
 	)
 
-	if fileOnly && !dirOnly {
-		fs, err = file.GetFiles(root, opt)
-	} else if !fileOnly && dirOnly {
-		fs, err = file.GetDirs(root, opt)
-	} else {
-		fs, err = file.GetFilesAndDirs(root, opt)
+	if errSkip {
+		opt.ErrSkip = true
 	}
+
+	ds, err = file.GetDirInfoAll(root, opt)
 
 	if err != nil {
 		return err
 	}
 
-	for f := range fs {
-		if f.Err != nil {
+	for d := range ds {
+		if d.Err != nil {
 			if errSkip {
-				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", f.Err)
+				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", d.Err)
 				continue
 			}
-			return f.Err
+			return d.Err
 		}
-		abs, err := filepath.Abs(f.Path)
+		abs, err := filepath.Abs(d.Path)
 		if err != nil {
 			if errSkip {
 				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", err)
@@ -193,7 +192,7 @@ func getFileInfo(root string, fi chan FileInfo) error {
 			}
 			return err
 		}
-		full, err := filepath.Abs(file.ShareToAbs(f.Path))
+		full, err := filepath.Abs(file.ShareToAbs(d.Path))
 		if err != nil {
 			if errSkip {
 				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", err)
@@ -201,46 +200,47 @@ func getFileInfo(root string, fi chan FileInfo) error {
 			}
 			return err
 		}
-		fi <- FileInfo{
-			Full: full,
-			Abs:  abs,
-			Rel:  f.Path,
-			Name: f.Fi.Name(),
-			Time: f.Fi.ModTime().Format("2006/01/02 15:04:05.000"),
-			Size: fmt.Sprint(f.Fi.Size()),
-			Mode: f.Fi.Mode().String(),
-			Type: getType(f.Fi),
+		diRec := file.GetDirInfoRecurse(d, opt)
+		if diRec.Err != nil {
+			if errSkip {
+				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", diRec.Err)
+				continue
+			}
+			return diRec.Err
+		}
+		di <- DirInfo{
+			Full:      full,
+			Rel:       d.Path,
+			Abs:       abs,
+			Name:      d.Fi.Name(),
+			Time:      d.Fi.ModTime().Format("2006/01/02 15:04:05.000"),
+			Size:      fmt.Sprint(diRec.Size),
+			FileCount: diRec.FileCount,
+			DirCount:  diRec.DirCount,
 		}
 	}
 
 	return err
 }
 
-func getType(f os.FileInfo) string {
-	if f.IsDir() {
-		return DIR
-	}
-	return FILE
-}
-
-func fileInfoToCsv(fi FileInfo) []string {
-	a := make([]string, FileMax)
-	a[FileFull-1] = fi.Full
-	a[FileRel-1] = fi.Rel
-	a[FileAbs-1] = fi.Abs
-	a[FileName-1] = fi.Name
-	a[FileTime-1] = fi.Time
-	a[FileSize-1] = fi.Size
-	a[FileMode-1] = fi.Mode
-	a[FileType-1] = fi.Type
+func dirInfoToCsv(di DirInfo) []string {
+	a := make([]string, DirMax)
+	a[DirFull-1] = di.Full
+	a[DirRel-1] = di.Rel
+	a[DirAbs-1] = di.Abs
+	a[DirName-1] = di.Name
+	a[DirTime-1] = di.Time
+	a[DirSize-1] = di.Size
+	a[DirFileCount-1] = fmt.Sprint(di.FileCount)
+	a[DirDirCount-1] = fmt.Sprint(di.DirCount)
 	return a
 }
 
-func getFileCsvHeader() []string {
-	var fiv FileInfoValue
+func getDirCsvHeader() []string {
+	var div DirInfoValue
 	header := make([]string, 0)
-	for fiv = 1; fiv <= FileMax; fiv++ {
-		header = append(header, fiv.String())
+	for div = 1; div <= DirMax; div++ {
+		header = append(header, div.String())
 	}
 	return header
 }
