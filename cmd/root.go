@@ -25,7 +25,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/yukimemi/file"
+	"github.com/yukimemi/core"
 )
 
 // FileInfoValue is FileInfo type.
@@ -103,7 +103,7 @@ var (
 	silent   bool
 	// Other variables.
 	err error
-	ci  Cmd
+	ci  core.Cmd
 	cnt = 0
 )
 
@@ -168,7 +168,7 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gfi.yaml)")
 
 	// Get command info.
-	ci, err = GetCmdInfo()
+	ci, err = core.GetCmdInfo(os.Args[0])
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -264,52 +264,6 @@ func (r records) Less(i, j int) bool {
 // Swap is records swap func.
 func (r records) Swap(i, j int) {
 	r[i], r[j] = r[j], r[i]
-}
-
-// GetCmdInfo return struct of Cmd.
-func GetCmdInfo() (Cmd, error) {
-
-	var (
-		ci  Cmd
-		err error
-	)
-
-	// Get cmd info.
-	cmdFile, err := file.GetCmdPath(os.Args[0])
-	if err != nil {
-		return ci, err
-	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return ci, err
-	}
-	cmdDir := filepath.Dir(cmdFile)
-	ci = Cmd{
-		File: cmdFile,
-		Dir:  cmdDir,
-		Name: file.BaseName(cmdFile),
-		Cwd:  cwd,
-	}
-	return ci, nil
-
-}
-
-func getGlobArgs(args []string) ([]string, error) {
-
-	var (
-		err error
-		a   = make([]string, 0)
-	)
-	for _, v := range args {
-		files, err := filepath.Glob(v)
-		if err != nil {
-			log.Println(err)
-			return nil, err
-		}
-		a = append(a, files...)
-	}
-
-	return a, err
 }
 
 func (fiv FileInfoValue) String() string {

@@ -27,6 +27,7 @@ import (
 	"golang.org/x/text/transform"
 
 	"github.com/spf13/cobra"
+	"github.com/yukimemi/core"
 	"github.com/yukimemi/file"
 )
 
@@ -72,7 +73,7 @@ func executeGet(cmd *cobra.Command, args []string) {
 		return
 	}
 	// Get glob file args.
-	args, err = getGlobArgs(args)
+	args, err = core.GetGlobArgs(args)
 	if err != nil {
 		log.Fatalln(err)
 	}

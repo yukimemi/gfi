@@ -92,7 +92,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 	}
 
 	// Get glob file args.
-	args, err = getGlobArgs(args)
+	args, err = core.GetGlobArgs(args)
 	if err != nil {
 		log.Fatalln(err)
 	}
