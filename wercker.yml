@@ -29,11 +29,17 @@ build:
 
     # Verbose
     - script:
-      name: echo
+      name: go version
       code: |
         go version
-        pwd
         ls -la
+
+    # Set git config
+    - script:
+      name: git config
+      code: |
+        git config --global user.name yukimemi
+        git config --global user.email yukimemi@gmail.com
 
     # Gets the dependencies
     - script:
