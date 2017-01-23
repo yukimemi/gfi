@@ -156,8 +156,8 @@ func executeGet(cmd *cobra.Command, args []string) {
 func getFileInfo(root string, fi chan FileInfo) error {
 
 	var (
-		err error
-		fs  chan file.Info
+		err   error
+		infos chan file.Info
 
 		opt = file.Option{
 			Matches: matches,
@@ -167,18 +167,18 @@ func getFileInfo(root string, fi chan FileInfo) error {
 	)
 
 	if fileOnly && !dirOnly {
-		fs, err = file.GetFiles(root, opt)
+		infos, err = file.GetFiles(root, opt)
 	} else if !fileOnly && dirOnly {
-		fs, err = file.GetDirs(root, opt)
+		infos, err = file.GetDirs(root, opt)
 	} else {
-		fs, err = file.GetFilesAndDirs(root, opt)
+		infos, err = file.GetInfos(root, opt)
 	}
 
 	if err != nil {
 		return err
 	}
 
-	for f := range fs {
+	for f := range infos {
 		if f.Err != nil {
 			if errSkip {
 				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", f.Err)
@@ -213,7 +213,6 @@ func getFileInfo(root string, fi chan FileInfo) error {
 			Type: getType(f.Fi),
 		}
 	}
-
 	return err
 }
 

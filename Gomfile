@@ -1,2 +1,2 @@
 gom 'github.com/yukimemi/core', :tag => 'v0.1'
-gom 'github.com/yukimemi/file', :tag => 'v0.1'
+gom 'github.com/yukimemi/file'

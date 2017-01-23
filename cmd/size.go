@@ -157,8 +157,10 @@ func executeSize(cmd *cobra.Command, args []string) {
 func getDirInfo(root string, di chan DirInfo) error {
 
 	var (
-		err error
-		ds  chan file.DirInfo
+		err  error
+		ferr error
+		dirs chan file.Info
+		wg   sync.WaitGroup
 
 		opt = file.Option{
 			Matches: matches,
@@ -167,61 +169,74 @@ func getDirInfo(root string, di chan DirInfo) error {
 		}
 	)
 
-	if errSkip {
-		opt.ErrSkip = true
-	}
-
-	ds, err = file.GetDirInfoAll(root, opt)
+	dirs, err = file.GetDirs(root, opt)
 
 	if err != nil {
 		return err
 	}
 
-	for d := range ds {
-		if d.Err != nil {
-			if errSkip {
-				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", d.Err)
-				continue
-			}
-			return d.Err
-		}
-		abs, err := filepath.Abs(d.Path)
-		if err != nil {
-			if errSkip {
-				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", err)
-				continue
-			}
-			return err
-		}
-		full, err := filepath.Abs(file.ShareToAbs(d.Path))
-		if err != nil {
-			if errSkip {
-				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", err)
-				continue
-			}
-			return err
-		}
-		diRec := file.GetDirInfoRecurse(d, opt)
-		if diRec.Err != nil {
-			if errSkip {
-				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", diRec.Err)
-				continue
-			}
-			return diRec.Err
-		}
-		di <- DirInfo{
-			Full:      full,
-			Rel:       d.Path,
-			Abs:       abs,
-			Name:      d.Fi.Name(),
-			Time:      d.Fi.ModTime().Format("2006/01/02 15:04:05.000"),
-			Size:      fmt.Sprint(diRec.Size),
-			FileCount: diRec.FileCount,
-			DirCount:  diRec.DirCount,
-		}
-	}
+	for d := range dirs {
+		wg.Add(1)
+		go func(d file.Info) {
+			defer wg.Done()
+			var dInfo DirInfo
 
-	return err
+			if d.Err != nil {
+				if errSkip {
+					fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", d.Err)
+					return
+				}
+				if d.Path != "" {
+					dInfo.Rel = d.Path
+				}
+				ferr = d.Err
+				return
+			}
+			dInfo.Abs, err = filepath.Abs(d.Path)
+			if err != nil {
+				if errSkip {
+					fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", err)
+					return
+				}
+				ferr = err
+				return
+			}
+			dInfo.Full, err = filepath.Abs(file.ShareToAbs(d.Path))
+			if err != nil {
+				if errSkip {
+					fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", err)
+					return
+				}
+				ferr = err
+				return
+			}
+			t := file.GetDirInfo(d.Path)
+			if t.Err != nil {
+				if errSkip {
+					fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", t.Err)
+					return
+				}
+				ferr = err
+				return
+			}
+			dInfo.Rel = d.Path
+			dInfo.Name = d.Fi.Name()
+			dInfo.Time = d.Fi.ModTime().Format("2006/01/02 15:04:05.000")
+			dInfo.Size = fmt.Sprint(t.DirSize)
+			dInfo.FileCount = t.FileCount
+			dInfo.DirCount = t.DirCount
+			di <- dInfo
+		}(d)
+	}
+	wg.Wait()
+	if ferr != nil {
+		if errSkip {
+			fmt.Fprintf(os.Stderr, "Warning: [%s].\n", ferr)
+			return nil
+		}
+		return ferr
+	}
+	return nil
 }
 
 func dirInfoToCsv(di DirInfo) []string {

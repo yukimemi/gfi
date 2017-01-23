@@ -32,7 +32,8 @@ func TestDiffCmdRun(t *testing.T) {
 	)
 
 	tmp := setup()
-	defer shutdown(tmp)
+	t.Log(tmp)
+	/* defer shutdown(tmp) */
 
 	c1 := filepath.Join(tmp, getCsv1)
 	RootCmd.SetArgs([]string{"get", "-s", "-o", c1, tmp})
@@ -91,6 +92,13 @@ func TestDiffCmdRun(t *testing.T) {
 					t.Fatalf("Expect: [Diff] Actual: [%v]", r[2])
 				}
 			case 1:
+				if filepath.Base(r[0]) != filepath.Base(tmp) {
+					t.Fatalf("Expect: [%v] Actual: [%v]", filepath.Base(tmp), r[0])
+				}
+				if r[2] != FileTime.String() {
+					t.Fatalf("Expect: [%v] Actual: [%v]", FileTime.String(), r[2])
+				}
+			case 3:
 				if filepath.Base(r[0]) != "file0" {
 					t.Fatalf("Expect: [file0] Actual: [%v]", r[0])
 				}
@@ -104,7 +112,7 @@ func TestDiffCmdRun(t *testing.T) {
 				if r[2] != FileTime.String() {
 					t.Fatalf("Expect: [%v] Actual: [%v]", FileTime.String(), r[2])
 				}
-			case 3:
+			case 5:
 				if r[0] != c1 {
 					t.Fatalf("Expect: [%v] Actual: [%v]", c1, r[0])
 				}
@@ -118,7 +126,7 @@ func TestDiffCmdRun(t *testing.T) {
 				if r[2] != FileTime.String() {
 					t.Fatalf("Expect: [%v] Actual: [%v]", FileTime.String(), r[2])
 				}
-			case 5:
+			case 6:
 				if r[0] != c2 {
 					t.Fatalf("Expect: [%v] Actual: [%v]", c2, r[0])
 				}
