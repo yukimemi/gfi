@@ -3,7 +3,7 @@
 # If you want Google's container you would reference google/golang
 # Read more about containers on our dev center
 # http://devcenter.wercker.com/docs/containers/index.html
-box: golang
+box: yukimemi/golang-ghr
   # This is the build pipeline. Pipelines are the core of wercker
   # Read more about pipelines on our dev center
   # http://devcenter.wercker.com/docs/pipelines/index.html
@@ -27,17 +27,19 @@ build:
     # at the right place in the workspace tree
     - setup-go-workspace
 
+    # Verbose
+    - script:
+      name: echo
+      code: |
+        go version
+        pwd
+        ls -la
+
     # Gets the dependencies
     - script:
       name: go get
       code: |
         go get
-
-    # gom command install
-    - script:
-      name: gom command install
-      code: |
-        go get github.com/mattn/gom
 
     # Get vendor dependencies
     - script:
@@ -45,15 +47,21 @@ build:
       code: |
         gom install
 
-    # Build the project
-    - script:
-      name: go build
-      code: |
-        go build ./...
-
     # Test the project
     - script:
       name: go test
       code: |
-        go test ./...
+        go test
+
+    # Cross compile
+    - script:
+      name: cross compile
+      code: |
+        compile
+
+    # Release to github
+    - script:
+      name: ghr release
+      code: |
+        release
 
