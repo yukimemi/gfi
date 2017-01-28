@@ -158,9 +158,7 @@ func getDirInfo(root string, di chan DirInfo) error {
 
 	var (
 		err  error
-		ferr error
-		dirs chan file.Info
-		wg   sync.WaitGroup
+		dirs chan file.DirInfo
 
 		opt = file.Option{
 			Matches: matches,
@@ -169,72 +167,45 @@ func getDirInfo(root string, di chan DirInfo) error {
 		}
 	)
 
-	dirs, err = file.GetDirs(root, opt)
+	dirs, err = file.GetDirInfos(root, opt)
 
 	if err != nil {
 		return err
 	}
 
 	for d := range dirs {
-		wg.Add(1)
-		go func(d file.Info) {
-			defer wg.Done()
-			var dInfo DirInfo
+		var dInfo DirInfo
 
-			if d.Err != nil {
-				if errSkip {
-					fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", d.Err)
-					return
-				}
-				if d.Path != "" {
-					dInfo.Rel = d.Path
-				}
-				ferr = d.Err
-				return
+		if d.Err != nil {
+			if errSkip {
+				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", d.Err)
+				continue
 			}
-			dInfo.Abs, err = filepath.Abs(d.Path)
-			if err != nil {
-				if errSkip {
-					fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", err)
-					return
-				}
-				ferr = err
-				return
-			}
-			dInfo.Full, err = filepath.Abs(file.ShareToAbs(d.Path))
-			if err != nil {
-				if errSkip {
-					fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", err)
-					return
-				}
-				ferr = err
-				return
-			}
-			t := file.GetDirInfo(d.Path)
-			if t.Err != nil {
-				if errSkip {
-					fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", t.Err)
-					return
-				}
-				ferr = err
-				return
-			}
-			dInfo.Rel = d.Path
-			dInfo.Name = d.Fi.Name()
-			dInfo.Time = d.Fi.ModTime().Format("2006/01/02 15:04:05.000")
-			dInfo.Size = fmt.Sprint(t.DirSize)
-			dInfo.FileCount = t.FileCount
-			dInfo.DirCount = t.DirCount
-			di <- dInfo
-		}(d)
-	}
-	wg.Wait()
-	if ferr != nil {
-		if errSkip {
-			fmt.Fprintf(os.Stderr, "Warning: [%s].\n", ferr)
-			return nil
+			return d.Err
 		}
-		return ferr
+		dInfo.Abs, err = filepath.Abs(d.Path)
+		if err != nil {
+			if errSkip {
+				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", err)
+				continue
+			}
+			return err
+		}
+		dInfo.Full, err = filepath.Abs(file.ShareToAbs(d.Path))
+		if err != nil {
+			if errSkip {
+				fmt.Fprintf(os.Stderr, "Warning: [%s]. continue.\n", err)
+				continue
+			}
+			return err
+		}
+		dInfo.Rel = d.Path
+		dInfo.Name = d.Fi.Name()
+		dInfo.Time = d.Fi.ModTime().Format("2006/01/02 15:04:05.000")
+		dInfo.Size = fmt.Sprint(d.DirSize)
+		dInfo.FileCount = d.FileCount
+		dInfo.DirCount = d.DirCount
+		di <- dInfo
 	}
 	return nil
 }
