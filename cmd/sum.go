@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"sync"
 
@@ -85,6 +86,7 @@ func executeSum(cmd *cobra.Command, args []string) {
 		readers = make([]*csv.Reader, 0)
 		q       = make(chan line)
 		wg      = new(sync.WaitGroup)
+		sem     = make(chan struct{}, runtime.NumCPU())
 	)
 
 	if len(args) == 0 {
@@ -145,7 +147,11 @@ func executeSum(cmd *cobra.Command, args []string) {
 	for i, reader := range readers {
 		wg.Add(1)
 		go func(i int, r *csv.Reader) {
-			defer wg.Done()
+			sem <- struct{}{}
+			defer func() {
+				wg.Done()
+				<-sem
+			}()
 
 			// Loop records.
 			for {

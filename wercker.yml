@@ -65,6 +65,11 @@ build:
       code: |
         compile
 
+deploy:
+  steps:
+    # Get app version from git tag.
+    - robertcsakany/version-from-git-tag
+
     # Release to github
     - script:
       name: ghr release
