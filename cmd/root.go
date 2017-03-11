@@ -107,14 +107,6 @@ var (
 	cnt = 0
 )
 
-// Cmd is command infomation.
-type Cmd struct {
-	File string
-	Dir  string
-	Name string
-	Cwd  string
-}
-
 // FileInfo is file infomation.
 type FileInfo struct {
 	Full string
@@ -167,14 +159,14 @@ func init() {
 	// will be global for your application.
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gfi.yaml)")
 
-	// Get command info.
-	ci, err = core.GetCmdInfo(os.Args[0])
+	// Get pwd.
+	pwd, err := os.Getwd()
 	if err != nil {
 		log.Fatalln(err)
 	}
 
 	// Output csv path.
-	csvPath := filepath.Join(ci.Cwd, time.Now().Format("20060102-150405.000")+".csv")
+	csvPath := filepath.Join(pwd, time.Now().Format("20060102-150405.000")+".csv")
 	RootCmd.PersistentFlags().StringVarP(&out, "out", "o", csvPath, "Csv output path")
 	// Verbose flag.
 	RootCmd.PersistentFlags().BoolVarP(&silent, "silent", "S", false, "Print no count")
