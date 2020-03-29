@@ -44,7 +44,7 @@ var (
 type info struct {
 	path  string
 	index int
-	full  string
+	rel  string
 	diff  FileInfoValue
 	value string
 	ford  string
@@ -179,7 +179,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 						continue
 					}
 
-					// Get other's same full path info.
+					// Get other's same rel path info.
 					otherFi, err := findFileInfo(other, oneFi)
 					if err == nil {
 						// Diff Time.
@@ -187,7 +187,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 							q <- info{
 								path:  args[i],
 								index: i,
-								full:  oneFi.Full,
+								rel:  oneFi.Rel,
 								diff:  FileTime,
 								value: oneFi.Time,
 								ford:  oneFi.Type,
@@ -198,7 +198,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 							q <- info{
 								path:  args[i],
 								index: i,
-								full:  oneFi.Full,
+								rel:  oneFi.Rel,
 								diff:  FileSize,
 								value: oneFi.Size,
 								ford:  oneFi.Type,
@@ -209,7 +209,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 							q <- info{
 								path:  args[i],
 								index: i,
-								full:  oneFi.Full,
+								rel:  oneFi.Rel,
 								diff:  FileMode,
 								value: oneFi.Mode,
 								ford:  oneFi.Type,
@@ -219,9 +219,9 @@ func executeDiff(cmd *cobra.Command, args []string) {
 						q <- info{
 							path:  args[i],
 							index: i,
-							full:  oneFi.Full,
+							rel:  oneFi.Rel,
 							diff:  FileFull,
-							value: oneFi.Full,
+							value: oneFi.Rel,
 							ford:  oneFi.Type,
 						}
 					}
@@ -242,12 +242,12 @@ func executeDiff(cmd *cobra.Command, args []string) {
 		if !silent {
 			fmt.Fprintf(os.Stderr, "Count: %d\r", cnt)
 		}
-		key := info.full + fmt.Sprint(info.diff)
+		key := info.rel + fmt.Sprint(info.diff)
 		if _, ok := csvMap[key]; ok {
 			csvMap[key][info.index+3] = info.value
 		} else {
 			s := make([]string, len(args)+3)
-			s[0] = info.full
+			s[0] = info.rel
 			s[1] = info.ford
 			s[2] = fmt.Sprint(info.diff)
 			s[info.index+3] = info.value
@@ -307,7 +307,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 func findFileInfo(fis FileInfos, target FileInfo) (FileInfo, error) {
 
 	for _, fi := range fis {
-		if fi.Full == target.Full {
+		if fi.Rel == target.Rel {
 			return fi, nil
 		}
 	}
