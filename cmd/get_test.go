@@ -47,7 +47,7 @@ func TestGetCmdRun(t *testing.T) {
 	}
 
 	reader := csv.NewReader(f1)
-	reader.Comma = '\t'
+	reader.Comma = ','
 	// Skip header.
 	_, err = reader.Read()
 	if err != nil {

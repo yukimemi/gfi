@@ -117,7 +117,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 		} else {
 			reader = csv.NewReader(c)
 		}
-		reader.Comma = '\t'
+		reader.Comma = ','
 		// Skip header.
 		_, err = reader.Read()
 		if err != nil {
@@ -273,7 +273,7 @@ func executeDiff(cmd *cobra.Command, args []string) {
 	} else {
 		writer = csv.NewWriter(c)
 	}
-	writer.Comma = '\t'
+	writer.Comma = ','
 	writer.UseCRLF = true
 
 	// Write header.

@@ -108,7 +108,7 @@ func executeGet(cmd *cobra.Command, args []string) {
 	} else {
 		writer = csv.NewWriter(c)
 	}
-	writer.Comma = '\t'
+	writer.Comma = ','
 	writer.UseCRLF = true
 
 	// Write header.
